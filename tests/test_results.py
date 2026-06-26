@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from qiskit.primitives import SamplerResult
 
 
@@ -39,3 +40,11 @@ def test_sampler_result_from_json_creates_metadata_for_each_logical_circuit() ->
 
     assert len(result.quasi_dists) == 2
     assert result.metadata == [{"shots": 50}, {"shots": 50}]
+
+
+def test_sampler_result_from_json_rejects_non_object_payload() -> None:
+    from cft_piastq.errors import PiastQError
+    from cft_piastq.results import sampler_result_from_json
+
+    with pytest.raises(PiastQError, match="JSON object"):
+        sampler_result_from_json(["not", "an", "object"])

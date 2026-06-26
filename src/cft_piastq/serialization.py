@@ -6,8 +6,9 @@ import base64
 import binascii
 import io
 from collections.abc import Sequence
+from typing import cast
 
-from qiskit import QuantumCircuit, qpy
+from qiskit import QuantumCircuit, qpy  # type: ignore[import-untyped]
 
 from .errors import PiastQError
 from .security import safe_error_message
@@ -63,16 +64,19 @@ def qpy_base64_to_circuits(qpy_base64: str) -> list[QuantumCircuit]:
 def circuit_metadata(circuit: QuantumCircuit, *, index: int) -> JSONDict:
     """Return JSON-safe metadata used when submitting a circuit."""
 
-    return {
-        "circuit_index": index,
-        "circuit_name": circuit.name,
-        "num_qubits": circuit.num_qubits,
-        "num_clbits": circuit.num_clbits,
-        "depth": circuit.depth(),
-        "operation_counts": dict(circuit.count_ops()),
-        "used_qubits": _used_qubits(circuit),
-        "used_couplings": _used_couplings(circuit),
-    }
+    return cast(
+        JSONDict,
+        {
+            "circuit_index": index,
+            "circuit_name": circuit.name,
+            "num_qubits": circuit.num_qubits,
+            "num_clbits": circuit.num_clbits,
+            "depth": circuit.depth(),
+            "operation_counts": dict(circuit.count_ops()),
+            "used_qubits": _used_qubits(circuit),
+            "used_couplings": _used_couplings(circuit),
+        },
+    )
 
 
 def _decode_base64(qpy_base64: str) -> bytes:
@@ -97,6 +101,8 @@ def _used_couplings(circuit: QuantumCircuit) -> list[list[int]]:
     for instruction in circuit.data:
         if len(instruction.qubits) != 2:
             continue
-        qubit_indices = sorted(circuit.find_bit(qubit).index for qubit in instruction.qubits)
+        qubit_indices = sorted(
+            circuit.find_bit(qubit).index for qubit in instruction.qubits
+        )
         couplings.add((qubit_indices[0], qubit_indices[1]))
     return [list(pair) for pair in sorted(couplings)]

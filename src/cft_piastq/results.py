@@ -5,15 +5,18 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from qiskit.primitives import SamplerResult
-from qiskit.result import QuasiDistribution
+from qiskit.primitives import SamplerResult  # type: ignore[import-untyped]
+from qiskit.result import QuasiDistribution  # type: ignore[import-untyped]
 
 from .errors import PiastQError
 from .security import safe_error_message
 
 
-def sampler_result_from_json(payload: Mapping[str, Any]) -> SamplerResult:
+def sampler_result_from_json(payload: object) -> SamplerResult:
     """Return a Qiskit ``SamplerResult`` from a JSON-compatible payload."""
+
+    if not isinstance(payload, Mapping):
+        raise PiastQError("Sampler result payload must be a JSON object.")
 
     raw_quasi_dists = payload.get("quasi_dists")
     if not isinstance(raw_quasi_dists, list):
@@ -59,12 +62,15 @@ def _coerce_quasi_key(raw_key: object) -> int:
         return raw_key
     if isinstance(raw_key, str):
         return int(raw_key)
-    raise TypeError(f"unsupported quasi distribution key type: {type(raw_key).__name__}")
+    raise TypeError(
+        f"unsupported quasi distribution key type: {type(raw_key).__name__}"
+    )
 
 
 def _metadata_from_json(
     raw_metadata: object, *, count: int, shots: object
 ) -> list[dict[str, Any]]:
+    metadata: list[dict[str, Any]]
     if raw_metadata is None:
         metadata = [{} for _ in range(count)]
     elif isinstance(raw_metadata, list):
