@@ -77,12 +77,19 @@ def _redact_structured(value: object, *, key: str | None = None) -> object:
 
 
 def _is_secret_field_name(key: str) -> bool:
-    normalized = key.strip().lower().replace("-", "_")
+    normalized = _normalize_field_name(key)
     return (
         normalized in _SECRET_FIELD_NAMES
         or normalized.endswith("_token")
         or normalized.endswith("_api_key")
     )
+
+
+def _normalize_field_name(key: str) -> str:
+    normalized = key.strip().replace("-", "_")
+    normalized = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "_", normalized)
+    normalized = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", normalized)
+    return normalized.lower()
 
 
 def safe_error_message(exc: BaseException) -> str:
