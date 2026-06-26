@@ -14,6 +14,7 @@ from .errors import (
     PiastQError,
     PiastQTimeoutError,
 )
+from .client import PiastQClient
 
 
 class _Wave0FacadeGuard:
@@ -26,12 +27,6 @@ class _Wave0FacadeGuard:
             f"{self._facade_name} is a Wave 0 import guard. "
             "Use it after a later implementation wave adds the real facade."
         )
-
-
-class PiastQClient(_Wave0FacadeGuard):
-    """Importable placeholder for the client facade."""
-
-    _facade_name = "PiastQClient"
 
 
 class PiastQSampler(_Wave0FacadeGuard):
