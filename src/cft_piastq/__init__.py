@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ._version import __version__
+from .client import PiastQClient
 from .errors import (
     DashboardAuthError,
     DashboardUnavailableError,
@@ -26,12 +27,6 @@ class _Wave0FacadeGuard:
             f"{self._facade_name} is a Wave 0 import guard. "
             "Use it after a later implementation wave adds the real facade."
         )
-
-
-class PiastQClient(_Wave0FacadeGuard):
-    """Importable placeholder for the client facade."""
-
-    _facade_name = "PiastQClient"
 
 
 class PiastQSampler(_Wave0FacadeGuard):

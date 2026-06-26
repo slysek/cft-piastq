@@ -46,3 +46,49 @@ def test_safe_error_message_redacts_exception_text() -> None:
 
     assert "secret" not in message
     assert "owner=szymo" in message
+
+
+def test_redact_secrets_recursively_redacts_mapping_and_list_values() -> None:
+    from cft_piastq.security import redact_secrets
+
+    redacted = redact_secrets(
+        {
+            "detail": {
+                "PCSS_TOKEN": "short-secret",
+                "api_key": "short-key",
+                "context": "runner",
+            },
+            "errors": [
+                {"dashboard_api_key": "nested-short-key"},
+                {"message": "failed for owner=szymo"},
+            ],
+        }
+    )
+
+    assert "short-secret" not in redacted
+    assert "short-key" not in redacted
+    assert "nested-short-key" not in redacted
+    assert "runner" in redacted
+    assert "owner=szymo" in redacted
+    assert "[REDACTED]" in redacted
+
+
+def test_redact_secrets_recursively_redacts_camel_case_secret_fields() -> None:
+    from cft_piastq.security import redact_secrets
+
+    redacted = redact_secrets(
+        {
+            "detail": {
+                "apiKey": "short-key",
+                "dashboardApiKey": "dashboard-short-key",
+                "pcssToken": "short-secret",
+                "context": "runner",
+            }
+        }
+    )
+
+    assert "short-key" not in redacted
+    assert "dashboard-short-key" not in redacted
+    assert "short-secret" not in redacted
+    assert "runner" in redacted
+    assert "[REDACTED]" in redacted
