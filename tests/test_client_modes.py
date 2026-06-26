@@ -16,7 +16,6 @@ from cft_piastq.errors import (
     DirectModeUnavailableError,
 )
 
-
 BASE_URL = "https://dashboard.example"
 ENV_KEYS = (
     "PCSS_TOKEN",
@@ -80,6 +79,15 @@ def test_direct_mode_requires_token() -> None:
 
     with pytest.raises(DirectModeUnavailableError, match="PCSS token"):
         PiastQClient(mode="direct", verbose=False)
+
+
+def test_direct_backend_repr_does_not_leak_token() -> None:
+    from cft_piastq import PiastQClient
+
+    client = PiastQClient(mode="direct", token="short-secret-token", verbose=False)
+
+    assert "short-secret-token" not in repr(client.backend)
+    assert client.backend.token == "short-secret-token"
 
 
 def test_auto_mode_chooses_managed_when_health_succeeds() -> None:

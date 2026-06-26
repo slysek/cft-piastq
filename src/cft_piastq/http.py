@@ -59,11 +59,19 @@ class DashboardClient:
     def health(self) -> JSONDict:
         """Return managed runner health information."""
 
-        return self._request(
+        data = self._request(
             "GET",
             "/api/runner/health",
             error_type=DashboardUnavailableError,
         )
+        if (
+            data.get("runner_available") is False
+            or data.get("managed_mode_enabled") is False
+        ):
+            raise DashboardUnavailableError(
+                "Managed dashboard runner is not available."
+            )
+        return data
 
     def submit_job(self, payload: JSONDict) -> JSONDict:
         """Submit a job to the managed runner."""
@@ -194,7 +202,7 @@ class DashboardClient:
         if detail is None:
             detail = response.reason_phrase or f"HTTP {response.status_code}"
 
-        return redact_secrets(f"Dashboard request failed: {detail}")
+        return f"Dashboard request failed: {redact_secrets(detail)}"
 
 
 def _path_token(value: str) -> str:

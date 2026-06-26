@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ._version import __version__
+from .client import PiastQClient
 from .errors import (
     DashboardAuthError,
     DashboardUnavailableError,
@@ -14,7 +15,6 @@ from .errors import (
     PiastQError,
     PiastQTimeoutError,
 )
-from .client import PiastQClient
 
 
 class _Wave0FacadeGuard:

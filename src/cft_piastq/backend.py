@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -25,7 +25,7 @@ class DirectPiastQBackend:
 
     mode: Literal["direct"]
     owner: object
-    token: str
+    token: str = field(repr=False)
     registry_path: Path
     provider: object | None = None
 

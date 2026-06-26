@@ -14,7 +14,6 @@ from cft_piastq.errors import (
 )
 from cft_piastq.http import DashboardClient
 
-
 BASE_URL = "https://dashboard.example"
 DASHBOARD_KEY = "dashboard-key"
 PCSS_TOKEN = "pcss-token-from-local-env"
@@ -51,6 +50,27 @@ def test_health_success_returns_dashboard_payload() -> None:
 
     assert client.health() == {"status": "ok"}
     assert len(requests) == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"status": "ok", "runner_available": False},
+        {"status": "ok", "managed_mode_enabled": False},
+    ],
+)
+def test_health_raises_unavailable_when_dashboard_reports_runner_disabled(
+    payload: dict[str, object],
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/runner/health"
+        return httpx.Response(200, json=payload)
+
+    client = make_client(handler)
+
+    with pytest.raises(DashboardUnavailableError, match="not available"):
+        client.health()
 
 
 def test_unavailable_health_raises_dashboard_unavailable() -> None:
@@ -117,6 +137,32 @@ def test_submit_job_failure_raises_sanitized_managed_job_error() -> None:
     assert "runner failed" in message
     assert leaked_pcss_token not in message
     assert leaked_dashboard_key not in message
+    assert "[REDACTED]" in message
+
+
+def test_submit_job_failure_recursively_sanitizes_object_detail() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/runner/jobs"
+        return httpx.Response(
+            500,
+            json={
+                "detail": {
+                    "PCSS_TOKEN": "short-secret",
+                    "api_key": "short-key",
+                    "context": "runner failed",
+                }
+            },
+        )
+
+    client = make_client(handler)
+
+    with pytest.raises(ManagedJobError) as exc_info:
+        client.submit_job({"shots": 10})
+
+    message = str(exc_info.value)
+    assert "short-secret" not in message
+    assert "short-key" not in message
+    assert "runner failed" in message
     assert "[REDACTED]" in message
 
 
