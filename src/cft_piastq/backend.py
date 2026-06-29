@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Literal
 
 from .http import DashboardClient
-from .types import JSONDict
 
 
 @dataclass(frozen=True)
@@ -27,6 +26,7 @@ class DirectPiastQBackend:
     owner: object
     token: str = field(repr=False)
     registry_path: Path
+    dashboard_client: DashboardClient | None = None
     provider: object | None = None
 
 
@@ -38,4 +38,4 @@ class FakePiastQBackend:
     owner: object
     use_backend_noise: bool = False
     dashboard_client: DashboardClient | None = None
-    noise_model: JSONDict | None = None
+    noise_model: object | None = None

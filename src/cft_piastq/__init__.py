@@ -15,31 +15,8 @@ from .errors import (
     PiastQError,
     PiastQTimeoutError,
 )
-
-
-class _Wave0FacadeGuard:
-    """Temporary public facade until later implementation waves add behavior."""
-
-    _facade_name = "PiastQ facade"
-
-    def __init__(self, *_args: object, **_kwargs: object) -> None:
-        raise PiastQConfigurationError(
-            f"{self._facade_name} is a Wave 0 import guard. "
-            "Use it after a later implementation wave adds the real facade."
-        )
-
-
-class PiastQSampler(_Wave0FacadeGuard):
-    """Importable placeholder for the sampler facade."""
-
-    _facade_name = "PiastQSampler"
-
-
-class PiastQJob(_Wave0FacadeGuard):
-    """Importable placeholder for the job facade."""
-
-    _facade_name = "PiastQJob"
-
+from .job import PiastQJob
+from .sampler import PiastQSampler
 
 __all__ = [
     "__version__",
