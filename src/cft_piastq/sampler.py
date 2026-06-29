@@ -9,8 +9,8 @@ from qiskit import QuantumCircuit  # type: ignore[import-untyped]
 
 from ._version import __version__
 from .backend import DirectPiastQBackend, FakePiastQBackend, ManagedPiastQBackend
-from .errors import FakeBackendError, ManagedJobError, PiastQError
-from .job import DirectJobHandle, ManagedJobHandle, PiastQJob
+from .errors import ManagedJobError, PiastQError
+from .job import DirectJobHandle, FakeJobHandle, ManagedJobHandle, PiastQJob
 from .options import PiastQSamplerOptions, split_cft_options
 from .serialization import circuit_metadata, circuit_to_qpy_base64
 from .status import normalize_job_status
@@ -77,8 +77,13 @@ class PiastQSampler:
             )
 
         if isinstance(self.backend, FakePiastQBackend):
-            raise FakeBackendError(
-                "Fake sampler execution is implemented in a later wave."
+            return self._run_fake(
+                self.backend,
+                circuit_list,
+                parameter_values=parameter_values,
+                shots=resolved_shots,
+                provider_options=provider_options,
+                simulator_adapter=cft_options.get("cft_fake_simulator_adapter"),
             )
 
         raise PiastQError("Unsupported PiastQ backend handle.")
@@ -182,6 +187,35 @@ class PiastQSampler:
                 registry=registry,
                 local_job_id=local_job_id,
                 event_reporter=event_reporter,
+            )
+        )
+
+    def _run_fake(
+        self,
+        backend: FakePiastQBackend,
+        circuits: list[QuantumCircuit],
+        *,
+        parameter_values: object | None,
+        shots: int,
+        provider_options: Mapping[str, Any],
+        simulator_adapter: object | None,
+    ) -> PiastQJob:
+        from .fake import FakeSamplerAdapter
+
+        adapter = FakeSamplerAdapter(simulator_adapter=simulator_adapter)
+        result = adapter.run(
+            circuits,
+            shots=shots,
+            noise_model=backend.noise_model,
+            parameter_values=parameter_values,
+            provider_options=dict(provider_options),
+        )
+        return PiastQJob(
+            FakeJobHandle(
+                sampler_result=result,
+                shots=shots,
+                fake_job_id="fake-job",
+                num_bits=_result_num_bits(circuits),
             )
         )
 
