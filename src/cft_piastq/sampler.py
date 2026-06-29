@@ -9,15 +9,11 @@ from qiskit import QuantumCircuit  # type: ignore[import-untyped]
 
 from ._version import __version__
 from .backend import DirectPiastQBackend, FakePiastQBackend, ManagedPiastQBackend
-from .errors import (
-    DirectModeUnavailableError,
-    FakeBackendError,
-    ManagedJobError,
-    PiastQError,
-)
-from .job import ManagedJobHandle, PiastQJob
+from .errors import FakeBackendError, ManagedJobError, PiastQError
+from .job import DirectJobHandle, ManagedJobHandle, PiastQJob
 from .options import PiastQSamplerOptions, split_cft_options
 from .serialization import circuit_metadata, circuit_to_qpy_base64
+from .status import normalize_job_status
 
 DEFAULT_SHOTS = 1024
 UNTITLED_JOB_NAME = "Untitled job"
@@ -57,6 +53,7 @@ class PiastQSampler:
             run_cft_options,
             circuit_list,
         )
+        cft_description = _optional_text(cft_options.get("cft_description"))
 
         if isinstance(self.backend, ManagedPiastQBackend):
             return self._run_managed(
@@ -65,12 +62,18 @@ class PiastQSampler:
                 parameter_values=parameter_values,
                 shots=resolved_shots,
                 cft_job_name=cft_job_name,
-                cft_description=_optional_text(cft_options.get("cft_description")),
+                cft_description=cft_description,
             )
 
         if isinstance(self.backend, DirectPiastQBackend):
-            raise DirectModeUnavailableError(
-                "Direct sampler execution is implemented in a later wave."
+            return self._run_direct(
+                self.backend,
+                circuit_list,
+                parameter_values=parameter_values,
+                shots=resolved_shots,
+                cft_job_name=cft_job_name,
+                cft_description=cft_description,
+                provider_options=provider_options,
             )
 
         if isinstance(self.backend, FakePiastQBackend):
@@ -114,6 +117,71 @@ class PiastQSampler:
                 server_job_id=server_job_id,
                 shots=shots,
                 num_bits=_result_num_bits(circuits),
+            )
+        )
+
+    def _run_direct(
+        self,
+        backend: DirectPiastQBackend,
+        circuits: list[QuantumCircuit],
+        *,
+        parameter_values: object | None,
+        shots: int,
+        cft_job_name: str,
+        cft_description: str | None,
+        provider_options: Mapping[str, Any],
+    ) -> PiastQJob:
+        from .direct import DirectPcssAdapter
+
+        adapter = DirectPcssAdapter(
+            token=backend.token,
+            registry_path=backend.registry_path,
+            owner=backend.owner,
+            dashboard_client=backend.dashboard_client,
+        )
+        provider_job = adapter.run(
+            circuits,
+            parameter_values=parameter_values,
+            shots=shots,
+            provider_options=provider_options,
+        )
+        provider_job_id = _provider_job_id(provider_job)
+        registry = adapter.registry
+        event_reporter = adapter.event_reporter
+        local_job_id = provider_job_id
+        status = normalize_job_status(_provider_status(provider_job))
+
+        if registry is not None:
+            local_job_id = registry.insert_job(
+                provider_job_id=provider_job_id,
+                owner=backend.owner,
+                cft_job_name=cft_job_name,
+                cft_description=cft_description,
+                status=status,
+                shots=shots,
+                circuit_count=len(circuits),
+            )
+
+        if event_reporter is not None:
+            event_reporter.report(
+                local_job_id,
+                "submitted",
+                {
+                    "provider_job_id": provider_job_id,
+                    "status": status,
+                    "shots": shots,
+                    "circuit_count": len(circuits),
+                },
+            )
+
+        return PiastQJob(
+            DirectJobHandle(
+                provider_job=provider_job,
+                shots=shots,
+                num_bits=_result_num_bits(circuits),
+                registry=registry,
+                local_job_id=local_job_id,
+                event_reporter=event_reporter,
             )
         )
 
@@ -193,6 +261,19 @@ def _server_job_id_from_response(response: object) -> str:
             "Dashboard submit response did not include a server job identifier."
         )
     return job_id
+
+
+def _provider_job_id(provider_job: object) -> str:
+    job_id_method = getattr(provider_job, "job_id", None)
+    if callable(job_id_method):
+        return str(job_id_method())
+    job_id = getattr(provider_job, "job_id", None) or getattr(provider_job, "id", None)
+    return str(job_id) if job_id is not None else "direct-job"
+
+
+def _provider_status(provider_job: object) -> object:
+    status_method = getattr(provider_job, "status", None)
+    return status_method() if callable(status_method) else None
 
 
 def _owner_text(owner: object) -> str:

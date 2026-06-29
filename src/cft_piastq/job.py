@@ -149,6 +149,9 @@ class DirectJobHandle:
     provider_job: Any
     shots: int | None = None
     num_bits: int | None = None
+    registry: Any | None = None
+    local_job_id: str | None = None
+    event_reporter: Any | None = None
     _cancel_requested: bool = field(default=False, init=False, repr=False)
     _result: Any | None = field(default=None, init=False, repr=False)
 
@@ -163,17 +166,23 @@ class DirectJobHandle:
         return str(job_id_value) if job_id_value is not None else "direct-job"
 
     def status(self) -> JobStatus:
+        if self._cancel_requested:
+            self._record_status("cancel_requested", cancel_requested=True)
+            return "cancel_requested"
+
         status_method = getattr(self.provider_job, "status", None)
         if callable(status_method):
-            return normalize_job_status(_provider_status_value(status_method()))
-        if self._cancel_requested:
-            return "cancel_requested"
-        return "unknown"
+            status = normalize_job_status(_provider_status_value(status_method()))
+        else:
+            status = "unknown"
+        self._record_status(status)
+        return status
 
     def cancel(self) -> JobStatus:
         cancel_method = getattr(self.provider_job, "cancel", None)
         if not callable(cancel_method):
             self._cancel_requested = True
+            self._record_status("cancel_requested", cancel_requested=True)
             return "cancel_requested"
 
         try:
@@ -184,7 +193,11 @@ class DirectJobHandle:
             ) from exc
 
         status = normalize_job_status(_provider_status_value(raw_status))
-        return self.status() if status == "unknown" else status
+        if status == "unknown":
+            status = self.status()
+        else:
+            self._record_status(status)
+        return status
 
     def result(
         self,
@@ -209,6 +222,7 @@ class DirectJobHandle:
             raise DirectProviderError(
                 f"Unable to read direct provider result: {safe_error_message(exc)}"
             ) from exc
+        self._record_event("result_ready", {"status": "succeeded"})
         return self._result
 
     def counts(self, *, num_bits: int | None = None) -> list[dict[str, int]]:
@@ -222,6 +236,23 @@ class DirectJobHandle:
             num_bits=self.num_bits if num_bits is None else num_bits,
         )
 
+    def _record_status(
+        self,
+        status: JobStatus,
+        *,
+        cancel_requested: bool | None = None,
+    ) -> None:
+        if self.registry is not None and self.local_job_id is not None:
+            self.registry.update_status(
+                self.local_job_id,
+                status,
+                cancel_requested=cancel_requested,
+            )
+        self._record_event("status_update", {"status": status})
+
+    def _record_event(self, event_type: str, payload: Mapping[str, object]) -> None:
+        if self.event_reporter is not None and self.local_job_id is not None:
+            self.event_reporter.report(self.local_job_id, event_type, payload)
 
 @dataclass
 class FakeJobHandle:

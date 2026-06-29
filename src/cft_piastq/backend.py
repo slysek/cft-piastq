@@ -27,6 +27,7 @@ class DirectPiastQBackend:
     owner: object
     token: str = field(repr=False)
     registry_path: Path
+    dashboard_client: DashboardClient | None = None
     provider: object | None = None
 
 
