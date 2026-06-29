@@ -77,7 +77,6 @@ class AerSimulatorAdapter:
         parameter_values: object | None,
         provider_options: dict[str, object],
     ) -> SamplerResult:
-        del parameter_values
         try:
             from qiskit_aer import AerSimulator  # type: ignore[import-untyped]
         except ImportError as exc:
@@ -94,7 +93,8 @@ class AerSimulatorAdapter:
             simulator_kwargs["noise_model"] = noise_model
 
         simulator = AerSimulator(**simulator_kwargs)
-        compiled_circuits = transpile(circuits, simulator)
+        bound_circuits = _bind_parameter_values(circuits, parameter_values)
+        compiled_circuits = transpile(bound_circuits, simulator)
         raw_result = simulator.run(
             compiled_circuits,
             shots=shots,
@@ -103,7 +103,7 @@ class AerSimulatorAdapter:
 
         quasi_dists: list[QuasiDistribution] = []
         metadata: list[dict[str, object]] = []
-        for index, _circuit in enumerate(circuits):
+        for index, _circuit in enumerate(bound_circuits):
             counts = raw_result.get_counts(index)
             quasi_dists.append(_counts_to_quasi_distribution(counts, shots=shots))
             metadata.append({"shots": shots, "simulator": "aer"})
@@ -378,6 +378,10 @@ def _readout_matrix(entry: Mapping[object, object]) -> list[list[float]]:
                     "Fake backend readout probabilities must be between 0 and 1."
                 )
             row.append(probability)
+        if abs(sum(row) - 1.0) > 1e-9:
+            raise FakeBackendError(
+                "Fake backend readout probabilities rows must sum to 1."
+            )
         matrix.append(row)
     return matrix
 
@@ -392,6 +396,56 @@ def _first_present(
     return None
 
 
+
+def _bind_parameter_values(
+    circuits: list[QuantumCircuit],
+    parameter_values: object | None,
+) -> list[QuantumCircuit]:
+    if parameter_values is None:
+        return list(circuits)
+
+    if not isinstance(parameter_values, list | tuple):
+        values_by_circuit: list[object] = [parameter_values]
+    else:
+        values_by_circuit = list(parameter_values)
+
+    if len(circuits) == 1 and values_by_circuit and not isinstance(
+        values_by_circuit[0], list | tuple | Mapping
+    ):
+        values_by_circuit = [values_by_circuit]
+
+    if len(values_by_circuit) != len(circuits):
+        raise FakeBackendError(
+            "Fake backend parameter_values must match the circuit count."
+        )
+
+    bound_circuits: list[QuantumCircuit] = []
+    for circuit, raw_values in zip(circuits, values_by_circuit, strict=True):
+        parameters = list(circuit.parameters)
+        if not parameters:
+            bound_circuits.append(circuit)
+            continue
+        if isinstance(raw_values, Mapping):
+            bindings = dict(raw_values)
+        elif isinstance(raw_values, list | tuple):
+            if len(raw_values) != len(parameters):
+                raise FakeBackendError(
+                    "Fake backend parameter_values length does not match circuit parameters."
+                )
+            bindings = dict(zip(parameters, raw_values, strict=True))
+        else:
+            if len(parameters) != 1:
+                raise FakeBackendError(
+                    "Fake backend parameter_values length does not match circuit parameters."
+                )
+            bindings = {parameters[0]: raw_values}
+        try:
+            bound_circuits.append(circuit.assign_parameters(bindings, inplace=False))
+        except Exception as exc:
+            raise FakeBackendError(
+                f"Unable to bind fake backend parameter_values: {safe_error_message(exc)}"
+            ) from exc
+    return bound_circuits
 def _counts_to_quasi_distribution(
     counts: Mapping[object, object],
     *,

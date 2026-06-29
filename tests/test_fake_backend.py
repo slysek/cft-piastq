@@ -349,3 +349,80 @@ def test_noise_model_from_payload_raises_clear_error_when_aer_is_missing(
 
     with pytest.raises(FakeBackendError, match="qiskit-aer"):
         noise_model_from_payload({"noise_model": {"errors": []}})
+
+
+def test_aer_simulator_adapter_binds_parameter_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_module = ModuleType("qiskit_aer")
+    observed: dict[str, object] = {}
+
+    class FakeAerSimulator:
+        def __init__(self, **kwargs: object) -> None:
+            observed["kwargs"] = kwargs
+
+        def run(
+            self,
+            circuits: list[QuantumCircuit],
+            *,
+            shots: int,
+            **options: object,
+        ) -> object:
+            observed["circuits"] = circuits
+            observed["shots"] = shots
+            observed["options"] = options
+            return self
+
+        def result(self) -> object:
+            return self
+
+        def get_counts(self, index: int) -> dict[str, int]:
+            del index
+            return {"0": 10}
+
+    fake_module.AerSimulator = FakeAerSimulator
+    monkeypatch.setitem(sys.modules, "qiskit_aer", fake_module)
+
+    import cft_piastq.fake as fake_module_under_test
+
+    monkeypatch.setattr(
+        fake_module_under_test,
+        "transpile",
+        lambda circuits, _simulator: circuits,
+    )
+    theta = next(iter(QuantumCircuit(1).parameters), None)
+    circuit = QuantumCircuit(1, 1)
+    from qiskit.circuit import Parameter
+
+    angle = Parameter("theta")
+    circuit.rx(angle, 0)
+    circuit.measure(0, 0)
+
+    adapter = fake_module_under_test.AerSimulatorAdapter()
+    result = adapter.run(
+        [circuit],
+        shots=10,
+        noise_model=None,
+        parameter_values=[[0.25]],
+        provider_options={},
+    )
+
+    del theta
+    submitted_circuit = observed["circuits"][0]  # type: ignore[index]
+    assert not submitted_circuit.parameters
+    assert result.quasi_dists[0][0] == 1.0
+
+
+def test_noise_model_from_payload_wraps_aer_readout_validation_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_fake_aer_noise(monkeypatch)
+
+    from cft_piastq.fake import noise_model_from_payload
+
+    with pytest.raises(FakeBackendError, match="readout"):
+        noise_model_from_payload(
+            {
+                "readout_errors": [
+                    {"qubits": [0], "probabilities": [[1.0, 1.0], [0.0, 0.0]]}
+                ]
+            }
+        )
