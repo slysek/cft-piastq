@@ -163,7 +163,9 @@ class DirectJobHandle:
         job_id_value = getattr(self.provider_job, "job_id", None)
         if job_id_value is None:
             job_id_value = getattr(self.provider_job, "id", None)
-        return str(job_id_value) if job_id_value is not None else "direct-job"
+        if job_id_value is not None:
+            return str(job_id_value)
+        return self.local_job_id or "direct-job"
 
     def status(self) -> JobStatus:
         if self._cancel_requested:

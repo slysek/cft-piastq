@@ -263,12 +263,12 @@ def _server_job_id_from_response(response: object) -> str:
     return job_id
 
 
-def _provider_job_id(provider_job: object) -> str:
+def _provider_job_id(provider_job: object) -> str | None:
     job_id_method = getattr(provider_job, "job_id", None)
     if callable(job_id_method):
         return str(job_id_method())
     job_id = getattr(provider_job, "job_id", None) or getattr(provider_job, "id", None)
-    return str(job_id) if job_id is not None else "direct-job"
+    return str(job_id) if job_id is not None else None
 
 
 def _provider_status(provider_job: object) -> object:

@@ -64,7 +64,7 @@ class DirectJobRegistry:
 
         now = _utc_now()
         normalized_status = normalize_job_status(status)
-        resolved_local_job_id = _safe_text(
+        resolved_local_job_id = _safe_identifier(
             local_job_id or provider_job_id or f"direct-{uuid.uuid4().hex}"
         )
         with self._lock, self._connect() as connection:
@@ -90,7 +90,7 @@ class DirectJobRegistry:
                 """,
                 (
                     resolved_local_job_id,
-                    _safe_text(provider_job_id),
+                    _safe_identifier(provider_job_id),
                     _safe_text(owner),
                     _safe_text(cft_job_name),
                     _safe_text(cft_description),
@@ -131,7 +131,7 @@ class DirectJobRegistry:
                     _safe_text(error),
                     None if cancel_requested is None else int(cancel_requested),
                     _utc_now(),
-                    _safe_text(local_job_id),
+                    _safe_identifier(local_job_id),
                 ),
             )
 
@@ -160,7 +160,7 @@ class DirectJobRegistry:
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    _safe_text(local_job_id),
+                    _safe_identifier(local_job_id),
                     _safe_text(event_type),
                     _safe_json_text(payload or {}),
                     _safe_text(error),
@@ -193,7 +193,7 @@ class DirectJobRegistry:
         with self._lock, self._connect() as connection:
             row = connection.execute(
                 "SELECT * FROM direct_jobs WHERE local_job_id = ?",
-                (_safe_text(local_job_id),),
+                (_safe_identifier(local_job_id),),
             ).fetchone()
         return None if row is None else dict(row)
 
@@ -212,7 +212,7 @@ class DirectJobRegistry:
                     WHERE local_job_id = ?
                     ORDER BY event_id
                     """,
-                    (_safe_text(local_job_id),),
+                    (_safe_identifier(local_job_id),),
                 ).fetchall()
         return [dict(row) for row in rows]
 
@@ -305,7 +305,11 @@ class DashboardEventReporter:
             return
 
         try:
-            response = self._send(safe_payload)
+            response = self._send({
+                "local_job_id": _safe_identifier(local_job_id),
+                "event_type": _safe_text(event_type),
+                "payload": safe_payload,
+            })
             if response.status_code == 404:
                 type(self)._upload_disabled = True
             if response.status_code >= 400:
@@ -377,6 +381,12 @@ def _utc_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _safe_identifier(value: object | None) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
 def _safe_text(value: object | None) -> str | None:
     if value is None:
         return None
@@ -428,4 +438,9 @@ def _is_qpy_field(normalized_key: str) -> bool:
 
 
 def _normalize_field_name(key: str) -> str:
-    return key.strip().replace("-", "_").lower()
+    import re
+
+    normalized = key.strip().replace("-", "_")
+    normalized = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "_", normalized)
+    normalized = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", normalized)
+    return normalized.lower()
