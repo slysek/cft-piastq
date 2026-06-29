@@ -82,7 +82,9 @@ class AerSimulatorAdapter:
         provider_options: dict[str, object],
     ) -> SamplerResult:
         try:
-            from qiskit_aer import AerSimulator  # type: ignore[import-untyped]
+            from qiskit_aer import (  # type: ignore[import-not-found,import-untyped]
+                AerSimulator,
+            )
         except ImportError as exc:
             raise _missing_aer_error() from exc
 
@@ -200,7 +202,7 @@ def _direct_noise_model_from_payload(raw_noise_model: object) -> object:
 
 def _import_aer_noise() -> Any:
     try:
-        from qiskit_aer.noise import (  # type: ignore[import-untyped]
+        from qiskit_aer.noise import (  # type: ignore[import-not-found,import-untyped]
             NoiseModel,
             ReadoutError,
             depolarizing_error,
@@ -219,9 +221,9 @@ class _AerNoiseApi:
     def __init__(
         self,
         *,
-        NoiseModel: object,
-        ReadoutError: object,
-        depolarizing_error: object,
+        NoiseModel: Any,
+        ReadoutError: Any,
+        depolarizing_error: Any,
     ) -> None:
         self.NoiseModel = NoiseModel
         self.ReadoutError = ReadoutError
@@ -258,7 +260,7 @@ def _entries(
 
 
 def _add_depolarizing_error(
-    model: object,
+    model: Any,
     noise_api: Any,
     entry: Mapping[object, object],
     *,
@@ -276,7 +278,7 @@ def _add_depolarizing_error(
 
 
 def _add_readout_error(
-    model: object,
+    model: Any,
     noise_api: Any,
     entry: Mapping[object, object],
 ) -> None:
@@ -293,12 +295,10 @@ def _probability(entry: Mapping[object, object]) -> float:
     raw_probability = _first_present(entry, "probability", "p", "error_probability")
     if raw_probability is None:
         raise FakeBackendError("Fake backend quantum error probability is required.")
-    try:
-        probability = float(raw_probability)
-    except (TypeError, ValueError) as exc:
-        raise FakeBackendError(
-            "Fake backend quantum error probability must be numeric."
-        ) from exc
+    probability = _coerce_float(
+        raw_probability,
+        "Fake backend quantum error probability must be numeric.",
+    )
     if probability < 0 or probability > 1:
         raise FakeBackendError(
             "Fake backend quantum error probability must be between 0 and 1."
@@ -371,12 +371,10 @@ def _readout_matrix(entry: Mapping[object, object]) -> list[list[float]]:
             raise FakeBackendError("Fake backend readout probabilities must be 2x2.")
         row: list[float] = []
         for raw_probability in raw_row:
-            try:
-                probability = float(raw_probability)
-            except (TypeError, ValueError) as exc:
-                raise FakeBackendError(
-                    "Fake backend readout probabilities must be numeric."
-                ) from exc
+            probability = _coerce_float(
+                raw_probability,
+                "Fake backend readout probabilities must be numeric.",
+            )
             if probability < 0 or probability > 1:
                 raise FakeBackendError(
                     "Fake backend readout probabilities must be between 0 and 1."
@@ -459,12 +457,21 @@ def _counts_to_quasi_distribution(
     for raw_key, raw_count in counts.items():
         try:
             key = _count_key_to_int(raw_key)
-            quasi[key] = float(raw_count) / shots
-        except (TypeError, ValueError) as exc:
+            quasi[key] = _coerce_float(raw_count, "count must be numeric") / shots
+        except (FakeBackendError, TypeError, ValueError) as exc:
             raise FakeBackendError(
                 f"Unable to convert fake backend counts: {safe_error_message(exc)}"
             ) from exc
     return QuasiDistribution(quasi)
+
+
+def _coerce_float(value: object, error_message: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, str | int | float):
+        raise FakeBackendError(error_message)
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise FakeBackendError(error_message) from exc
 
 
 def _count_key_to_int(raw_key: object) -> int:

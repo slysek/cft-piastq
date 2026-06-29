@@ -14,6 +14,7 @@ from .job import DirectJobHandle, FakeJobHandle, ManagedJobHandle, PiastQJob
 from .options import PiastQSamplerOptions, split_cft_options
 from .serialization import circuit_metadata, circuit_to_qpy_base64
 from .status import normalize_job_status
+from .types import JSONDict
 
 DEFAULT_SHOTS = 1024
 UNTITLED_JOB_NAME = "Untitled job"
@@ -112,7 +113,7 @@ class PiastQSampler:
         if parameter_values is not None:
             payload["parameter_values"] = _jsonish(parameter_values)
 
-        response = backend.dashboard_client.submit_job(cast(dict[str, object], payload))
+        response = backend.dashboard_client.submit_job(cast(JSONDict, payload))
         server_job_id = _server_job_id_from_response(response)
         return PiastQJob(
             ManagedJobHandle(
@@ -200,7 +201,7 @@ class PiastQSampler:
     ) -> PiastQJob:
         from .fake import FakeSamplerAdapter
 
-        adapter = FakeSamplerAdapter(simulator_adapter=simulator_adapter)
+        adapter = FakeSamplerAdapter(simulator_adapter=cast(Any, simulator_adapter))
         result = adapter.run(
             circuits,
             shots=shots,
@@ -316,7 +317,7 @@ def _owner_text(owner: object) -> str:
 def _result_num_bits(circuits: Sequence[QuantumCircuit]) -> int | None:
     if not circuits:
         return None
-    return max(circuit.num_clbits or circuit.num_qubits for circuit in circuits)
+    return int(max(circuit.num_clbits or circuit.num_qubits for circuit in circuits))
 
 
 def _jsonish(value: object) -> object:

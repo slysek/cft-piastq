@@ -7,9 +7,9 @@ import sqlite3
 import threading
 import uuid
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .security import redact_secrets, safe_error_message
 from .status import normalize_job_status
@@ -64,7 +64,7 @@ class DirectJobRegistry:
 
         now = _utc_now()
         normalized_status = normalize_job_status(status)
-        resolved_local_job_id = _safe_identifier(
+        resolved_local_job_id = str(
             local_job_id or provider_job_id or f"direct-{uuid.uuid4().hex}"
         )
         with self._lock, self._connect() as connection:
@@ -284,7 +284,10 @@ class DashboardEventReporter:
     ) -> None:
         """Upload a dashboard event and always audit failures locally."""
 
-        safe_payload = _sanitize_structured(payload or {})
+        safe_payload = cast(
+            Mapping[str, object],
+            _sanitize_structured(payload or {}),
+        )
         if self.dashboard_client is None:
             self._record_event(
                 local_job_id,
@@ -380,7 +383,7 @@ class DashboardEventReporter:
 
 
 def _utc_now() -> str:
-    return datetime.now(UTC).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _safe_identifier(value: object | None) -> str | None:

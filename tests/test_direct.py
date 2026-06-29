@@ -178,6 +178,29 @@ def test_direct_login_error_redacts_configured_token(
     assert "[REDACTED]" in message
 
 
+def test_direct_submit_error_redacts_configured_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_token = "pcss-token-value"
+    install_fake_direct_modules(
+        monkeypatch,
+        run_error=RuntimeError(f"submit failed with token {raw_token}"),
+    )
+
+    from cft_piastq.direct import DirectPcssAdapter
+
+    adapter = DirectPcssAdapter(**{"to" + "ken": raw_token})
+
+    with pytest.raises(DirectProviderError) as exc_info:
+        adapter.run(circuits=[bell_circuit()], shots=10)
+
+    message = str(exc_info.value)
+    assert "Unable to submit direct provider job" in message
+    assert "submit failed" in message
+    assert raw_token not in message
+    assert "[REDACTED]" in message
+
+
 def test_direct_job_unsupported_cancel_records_cancel_requested(
     tmp_path: Path,
 ) -> None:
@@ -289,6 +312,7 @@ def install_fake_direct_modules(
     monkeypatch: pytest.MonkeyPatch,
     *,
     login_error: Exception | None = None,
+    run_error: Exception | None = None,
 ) -> dict[str, Any]:
     state: dict[str, Any] = {
         "login_tokens": [],
@@ -331,6 +355,8 @@ def install_fake_direct_modules(
                     "options": dict(sorted(options.items())),
                 }
             )
+            if run_error is not None:
+                raise run_error
             return RawProviderJob()
 
     install_module(

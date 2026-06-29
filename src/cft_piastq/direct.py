@@ -49,14 +49,20 @@ class DirectPcssAdapter:
 
         sampler = self._sampler_or_create()
         options = dict(provider_options or {})
-        if parameter_values is None:
-            return sampler.run(circuits, shots=shots, **options)
-        return sampler.run(
-            circuits,
-            parameter_values=parameter_values,
-            shots=shots,
-            **options,
-        )
+        try:
+            if parameter_values is None:
+                return sampler.run(circuits, shots=shots, **options)
+            return sampler.run(
+                circuits,
+                parameter_values=parameter_values,
+                shots=shots,
+                **options,
+            )
+        except Exception as exc:  # pragma: no cover - provider-specific failures
+            raise DirectProviderError(
+                "Unable to submit direct provider job: "
+                f"{self._safe_provider_error(exc)}"
+            ) from exc
 
     @property
     def registry(self) -> Any | None:
