@@ -21,14 +21,13 @@ def test_public_facades_import_without_optional_provider_modules() -> None:
     assert "qiskit_aer" not in sys.modules
 
 
-def test_remaining_facade_guards_raise_clear_errors() -> None:
-    from cft_piastq import PiastQConfigurationError, PiastQJob, PiastQSampler
+def test_public_facades_export_real_implementations() -> None:
+    from cft_piastq import PiastQJob, PiastQSampler
+    from cft_piastq.job import PiastQJob as PiastQJobImplementation
+    from cft_piastq.sampler import PiastQSampler as PiastQSamplerImplementation
 
-    with pytest.raises(PiastQConfigurationError, match="later implementation wave"):
-        PiastQSampler()
-
-    with pytest.raises(PiastQConfigurationError, match="later implementation wave"):
-        PiastQJob()
+    assert PiastQSampler is PiastQSamplerImplementation
+    assert PiastQJob is PiastQJobImplementation
 
 
 def test_public_exception_hierarchy_is_available() -> None:

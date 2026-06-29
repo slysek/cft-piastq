@@ -28,6 +28,7 @@ class PiastQClient:
         self,
         *,
         mode: ExecutionMode | str | None = None,
+        owner: object = "unknown",
         token: str | None = None,
         dashboard_api_url: str | None = None,
         dashboard_api_key: str | None = None,
@@ -40,6 +41,7 @@ class PiastQClient:
     ) -> None:
         env = read_environment()
 
+        self._owner = owner
         self._requested_mode = _normalize_mode(mode if mode is not None else env.mode)
         self._token = _optional_non_empty(token if token is not None else env.token)
         self._dashboard_api_url = _optional_non_empty(
@@ -100,7 +102,7 @@ class PiastQClient:
             dashboard_client.health()
             return "managed", ManagedPiastQBackend(
                 mode="managed",
-                owner=self,
+                owner=self._owner,
                 dashboard_client=dashboard_client,
             )
 
@@ -127,7 +129,7 @@ class PiastQClient:
             else:
                 return "managed", ManagedPiastQBackend(
                     mode="managed",
-                    owner=self,
+                    owner=self._owner,
                     dashboard_client=dashboard_client,
                 )
 
@@ -146,7 +148,7 @@ class PiastQClient:
             raise DirectModeUnavailableError("Direct mode requires a PCSS token.")
         return DirectPiastQBackend(
             mode="direct",
-            owner=self,
+            owner=self._owner,
             token=self._token,
             registry_path=self._registry_path,
         )
@@ -160,7 +162,7 @@ class PiastQClient:
 
         return FakePiastQBackend(
             mode="fake",
-            owner=self,
+            owner=self._owner,
             use_backend_noise=self._use_backend_noise,
             dashboard_client=dashboard_client,
             noise_model=noise_model,
