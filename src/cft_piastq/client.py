@@ -146,11 +146,15 @@ class PiastQClient:
     def _direct_backend(self) -> DirectPiastQBackend:
         if not self._token:
             raise DirectModeUnavailableError("Direct mode requires a PCSS token.")
+        dashboard_client = (
+            self._dashboard_client_or_create() if self._dashboard_api_url else None
+        )
         return DirectPiastQBackend(
             mode="direct",
             owner=self._owner,
             token=self._token,
             registry_path=self._registry_path,
+            dashboard_client=dashboard_client,
         )
 
     def _fake_backend(self) -> FakePiastQBackend:
