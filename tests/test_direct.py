@@ -191,6 +191,34 @@ def test_direct_job_unsupported_cancel_records_cancel_requested(
     assert registry_job["cancel_requested"] == 1
 
 
+def test_direct_job_result_marks_registry_succeeded(tmp_path: Path) -> None:
+    from cft_piastq.registry import DirectJobRegistry
+
+    registry = DirectJobRegistry(tmp_path / "jobs.sqlite3")
+    local_job_id = registry.insert_job(
+        provider_job_id="provider-result-ready",
+        owner="local-user",
+        status="running",
+        shots=20,
+        circuit_count=1,
+    )
+    job = PiastQJob(
+        DirectJobHandle(
+            provider_job=ProviderJobWithoutCancel(),
+            shots=20,
+            num_bits=1,
+            registry=registry,
+            local_job_id=local_job_id,
+        )
+    )
+
+    assert job.result() is not None
+
+    registry_job = registry.get_job(local_job_id)
+    assert registry_job is not None
+    assert registry_job["status"] == "succeeded"
+
+
 class FakeDirectBackend:
     name = "pcss-direct-backend"
 

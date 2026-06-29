@@ -224,6 +224,7 @@ class DirectJobHandle:
             raise DirectProviderError(
                 f"Unable to read direct provider result: {safe_error_message(exc)}"
             ) from exc
+        self._record_status("succeeded")
         self._record_event("result_ready", {"status": "succeeded"})
         return self._result
 
