@@ -305,11 +305,13 @@ class DashboardEventReporter:
             return
 
         try:
-            response = self._send({
-                "local_job_id": _safe_identifier(local_job_id),
-                "event_type": _safe_text(event_type),
-                "payload": safe_payload,
-            })
+            response = self._send(
+                {
+                    "local_job_id": _safe_identifier(local_job_id),
+                    "event_type": _safe_text(event_type),
+                    "payload": safe_payload,
+                }
+            )
             if response.status_code == 404:
                 type(self)._upload_disabled = True
             if response.status_code >= 400:

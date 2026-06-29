@@ -95,7 +95,7 @@ def install_fake_aer_noise(monkeypatch: pytest.MonkeyPatch) -> type:
             self.readout_errors: list[tuple[object, ...]] = []
 
         @classmethod
-        def from_dict(cls, payload: dict[str, object]) -> "NoiseModel":
+        def from_dict(cls, payload: dict[str, object]) -> NoiseModel:
             model = cls()
             model.source = dict(payload)
             return model
@@ -111,9 +111,7 @@ def install_fake_aer_noise(monkeypatch: pytest.MonkeyPatch) -> type:
             gates: str | list[str],
             qubits: list[int],
         ) -> None:
-            self.quantum_errors.append(
-                ("qubits", _tupled(gates), tuple(qubits), error)
-            )
+            self.quantum_errors.append(("qubits", _tupled(gates), tuple(qubits), error))
 
         def add_all_qubit_readout_error(self, error: object) -> None:
             self.readout_errors.append(("all", None, error))
@@ -131,7 +129,9 @@ def install_fake_aer_noise(monkeypatch: pytest.MonkeyPatch) -> type:
                 and self.probabilities == other.probabilities
             )
 
-    def depolarizing_error(probability: float, num_qubits: int) -> tuple[str, float, int]:
+    def depolarizing_error(
+        probability: float, num_qubits: int
+    ) -> tuple[str, float, int]:
         return ("depolarizing", probability, num_qubits)
 
     noise_module.NoiseModel = NoiseModel
@@ -148,7 +148,7 @@ def _tupled(value: str | list[str]) -> tuple[str, ...]:
     return tuple(value)
 
 
-def test_client_fake_backend_without_noise_does_not_call_dashboard_noise_endpoint() -> None:
+def test_fake_backend_without_noise_stays_local() -> None:
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -351,7 +351,9 @@ def test_noise_model_from_payload_raises_clear_error_when_aer_is_missing(
         noise_model_from_payload({"noise_model": {"errors": []}})
 
 
-def test_aer_simulator_adapter_binds_parameter_values(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_aer_simulator_adapter_binds_parameter_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_module = ModuleType("qiskit_aer")
     observed: dict[str, object] = {}
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 
 REDACTION = "[REDACTED]"
 
@@ -37,10 +37,15 @@ _SECRET_FIELD_NAMES = frozenset(
 )
 
 
-def redact_secrets(message: object) -> str:
+def redact_secrets(
+    message: object,
+    *,
+    secret_values: Iterable[object] = (),
+) -> str:
     """Return message text with token-like values replaced by a marker."""
 
     text = str(_redact_structured(message))
+    text = _redact_known_secret_values(text, secret_values)
     return _redact_text(text)
 
 
@@ -54,6 +59,20 @@ def _redact_text(text: str) -> str:
         text,
     )
     return _LONG_KEY_RE.sub(REDACTION, text)
+
+
+def _redact_known_secret_values(
+    text: str,
+    secret_values: Iterable[object],
+) -> str:
+    for value in secret_values:
+        if value is None:
+            continue
+        secret = str(value)
+        if not secret:
+            continue
+        text = text.replace(secret, REDACTION)
+    return text
 
 
 def _redact_structured(value: object, *, key: str | None = None) -> object:
@@ -92,8 +111,12 @@ def _normalize_field_name(key: str) -> str:
     return normalized.lower()
 
 
-def safe_error_message(exc: BaseException) -> str:
+def safe_error_message(
+    exc: BaseException,
+    *,
+    secret_values: Iterable[object] = (),
+) -> str:
     """Return a public exception message with secrets redacted."""
 
     message = str(exc) or exc.__class__.__name__
-    return redact_secrets(message)
+    return redact_secrets(message, secret_values=secret_values)

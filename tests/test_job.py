@@ -204,9 +204,7 @@ def test_piastq_job_facade_delegates_to_direct_job_handle() -> None:
         metadata=[{"shots": 20}],
     )
     provider_job = ProviderJob(sampler_result)
-    job = PiastQJob(
-        DirectJobHandle(provider_job=provider_job, shots=20, num_bits=1)
-    )
+    job = PiastQJob(DirectJobHandle(provider_job=provider_job, shots=20, num_bits=1))
 
     assert job.job_id() == "provider-job-1"
     assert job.status() == "running"

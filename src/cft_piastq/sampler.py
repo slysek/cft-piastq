@@ -112,9 +112,7 @@ class PiastQSampler:
         if parameter_values is not None:
             payload["parameter_values"] = _jsonish(parameter_values)
 
-        response = backend.dashboard_client.submit_job(
-            cast(dict[str, object], payload)
-        )
+        response = backend.dashboard_client.submit_job(cast(dict[str, object], payload))
         server_job_id = _server_job_id_from_response(response)
         return PiastQJob(
             ManagedJobHandle(

@@ -106,7 +106,9 @@ class ManagedJobHandle:
                 )
 
             if status == "cancelled":
-                raise ManagedJobError(f"Managed job {self.server_job_id} was cancelled.")
+                raise ManagedJobError(
+                    f"Managed job {self.server_job_id} was cancelled."
+                )
 
             if status in _TERMINAL_STATUSES:
                 raise ManagedJobError(
@@ -138,7 +140,9 @@ class ManagedJobHandle:
     def _read_status_payload(self) -> Mapping[str, object]:
         payload = self.dashboard_client.get_job(self.server_job_id)
         if not isinstance(payload, Mapping):
-            raise ManagedJobError("Dashboard job status response must be a JSON object.")
+            raise ManagedJobError(
+                "Dashboard job status response must be a JSON object."
+            )
         return payload
 
 
@@ -257,6 +261,7 @@ class DirectJobHandle:
         if self.event_reporter is not None and self.local_job_id is not None:
             self.event_reporter.report(self.local_job_id, event_type, payload)
 
+
 @dataclass
 class FakeJobHandle:
     """Handle for an already-computed local fake-backend sampler result."""
@@ -350,9 +355,9 @@ def _managed_failure_message(
 
 def _provider_status_value(raw_status: object) -> object:
     if hasattr(raw_status, "value"):
-        return getattr(raw_status, "value")
+        return raw_status.value
     if hasattr(raw_status, "name"):
-        return getattr(raw_status, "name")
+        return raw_status.name
     return raw_status
 
 

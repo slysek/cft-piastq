@@ -32,9 +32,7 @@ def bell_circuit() -> QuantumCircuit:
 
 
 def test_sampler_options_support_attribute_and_dict_style_access() -> None:
-    options = PiastQSamplerOptions(
-        {"shots": 100, "cft_job_name": "Constructor name"}
-    )
+    options = PiastQSamplerOptions({"shots": 100, "cft_job_name": "Constructor name"})
 
     options.cft_description = "Mutable description"
     options["optimization_level"] = 1
@@ -118,6 +116,7 @@ def test_managed_sampler_uses_run_job_name_when_sampler_name_absent() -> None:
 
     payload = dashboard_client.submitted_payloads[0]
     assert payload["cft_job_name"] == "Run name"
+
 
 def test_managed_sampler_uses_single_circuit_name_when_job_names_absent() -> None:
     dashboard_client = RecordingDashboardClient()

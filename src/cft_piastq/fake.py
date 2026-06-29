@@ -12,6 +12,10 @@ from qiskit.result import QuasiDistribution  # type: ignore[import-untyped]
 from .errors import FakeBackendError
 from .security import safe_error_message
 
+_PARAMETER_VALUES_LENGTH_ERROR = (
+    "Fake backend parameter_values length does not match circuit parameters."
+)
+
 DEFAULT_FAKE_SEED = 12345
 
 
@@ -396,7 +400,6 @@ def _first_present(
     return None
 
 
-
 def _bind_parameter_values(
     circuits: list[QuantumCircuit],
     parameter_values: object | None,
@@ -409,8 +412,10 @@ def _bind_parameter_values(
     else:
         values_by_circuit = list(parameter_values)
 
-    if len(circuits) == 1 and values_by_circuit and not isinstance(
-        values_by_circuit[0], list | tuple | Mapping
+    if (
+        len(circuits) == 1
+        and values_by_circuit
+        and not isinstance(values_by_circuit[0], list | tuple | Mapping)
     ):
         values_by_circuit = [values_by_circuit]
 
@@ -429,23 +434,22 @@ def _bind_parameter_values(
             bindings = dict(raw_values)
         elif isinstance(raw_values, list | tuple):
             if len(raw_values) != len(parameters):
-                raise FakeBackendError(
-                    "Fake backend parameter_values length does not match circuit parameters."
-                )
+                raise FakeBackendError(_PARAMETER_VALUES_LENGTH_ERROR)
             bindings = dict(zip(parameters, raw_values, strict=True))
         else:
             if len(parameters) != 1:
-                raise FakeBackendError(
-                    "Fake backend parameter_values length does not match circuit parameters."
-                )
+                raise FakeBackendError(_PARAMETER_VALUES_LENGTH_ERROR)
             bindings = {parameters[0]: raw_values}
         try:
             bound_circuits.append(circuit.assign_parameters(bindings, inplace=False))
         except Exception as exc:
+            message = safe_error_message(exc)
             raise FakeBackendError(
-                f"Unable to bind fake backend parameter_values: {safe_error_message(exc)}"
+                f"Unable to bind fake backend parameter_values: {message}"
             ) from exc
     return bound_circuits
+
+
 def _counts_to_quasi_distribution(
     counts: Mapping[object, object],
     *,

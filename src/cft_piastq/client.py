@@ -160,9 +160,7 @@ class PiastQClient:
     def fake_backend(self, use_backend_noise: bool | str = False) -> FakePiastQBackend:
         """Return a local fake backend without changing the resolved client mode."""
 
-        return self._fake_backend_for(
-            parse_bool(use_backend_noise, default=False)
-        )
+        return self._fake_backend_for(parse_bool(use_backend_noise, default=False))
 
     def _fake_backend(self) -> FakePiastQBackend:
         return self._fake_backend_for(self._use_backend_noise)

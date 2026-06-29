@@ -97,7 +97,7 @@ class DirectPcssAdapter:
             except Exception as exc:  # pragma: no cover - provider-specific
                 raise DirectProviderError(
                     "Unable to create PCSS direct access backend: "
-                    f"{safe_error_message(exc)}"
+                    f"{self._safe_provider_error(exc)}"
                 ) from exc
 
         if self._sampler is None:
@@ -105,7 +105,7 @@ class DirectPcssAdapter:
                 self._sampler = dependencies.AQTSampler(self._direct_backend)
             except Exception as exc:  # pragma: no cover - provider-specific
                 raise DirectProviderError(
-                    f"Unable to create AQT sampler: {safe_error_message(exc)}"
+                    f"Unable to create AQT sampler: {self._safe_provider_error(exc)}"
                 ) from exc
 
         return self._sampler
@@ -119,9 +119,13 @@ class DirectPcssAdapter:
             dependencies.AuthorizationService.login(self.token)
         except Exception as exc:  # pragma: no cover - provider-specific
             raise DirectProviderError(
-                f"Unable to authenticate PCSS direct mode: {safe_error_message(exc)}"
+                "Unable to authenticate PCSS direct mode: "
+                f"{self._safe_provider_error(exc)}"
             ) from exc
         self._logged_in = True
+
+    def _safe_provider_error(self, exc: BaseException) -> str:
+        return safe_error_message(exc, secret_values=(self.token,))
 
     def _load_dependencies(self) -> _DirectDependencies:
         if self._dependencies is not None:

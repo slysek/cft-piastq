@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib
 import sys
 import types
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -14,9 +13,8 @@ from qiskit.primitives import SamplerResult
 from qiskit.result import QuasiDistribution
 
 from cft_piastq.backend import DirectPiastQBackend
-from cft_piastq.errors import DirectModeUnavailableError
+from cft_piastq.errors import DirectModeUnavailableError, DirectProviderError
 from cft_piastq.job import DirectJobHandle, PiastQJob
-
 
 OPTIONAL_MODULES = (
     "pcss_qapi",
@@ -158,6 +156,28 @@ def test_direct_missing_optional_packages_raise_safe_error(
     assert "pcss-token-that-must-not-leak" not in message
 
 
+def test_direct_login_error_redacts_configured_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_token = "pcss-token-value"
+    install_fake_direct_modules(
+        monkeypatch,
+        login_error=RuntimeError(f"bad token {raw_token}"),
+    )
+
+    from cft_piastq.direct import DirectPcssAdapter
+
+    adapter = DirectPcssAdapter(**{"to" + "ken": raw_token})
+
+    with pytest.raises(DirectProviderError) as exc_info:
+        adapter.run(circuits=[bell_circuit()], shots=10)
+
+    message = str(exc_info.value)
+    assert "bad token" in message
+    assert raw_token not in message
+    assert "[REDACTED]" in message
+
+
 def test_direct_job_unsupported_cancel_records_cancel_requested(
     tmp_path: Path,
 ) -> None:
@@ -267,6 +287,8 @@ class ProviderJobWithoutCancel:
 
 def install_fake_direct_modules(
     monkeypatch: pytest.MonkeyPatch,
+    *,
+    login_error: Exception | None = None,
 ) -> dict[str, Any]:
     state: dict[str, Any] = {
         "login_tokens": [],
@@ -278,6 +300,8 @@ def install_fake_direct_modules(
     class FakeAuthorizationService:
         @classmethod
         def login(cls, token: str) -> None:
+            if login_error is not None:
+                raise login_error
             state["login_tokens"].append(token)
 
     class RecordingProvider(FakeProvider):
