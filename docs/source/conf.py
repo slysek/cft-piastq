@@ -44,6 +44,6 @@ pygments_style = "sphinx"
 pygments_dark_style = "monokai"
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", {}),
-    "qiskit": ("https://quantum.cloud.ibm.com/docs/api/qiskit", {}),
+    "python": ("https://docs.python.org/3", None),
+    "qiskit": ("https://quantum.cloud.ibm.com/docs/api/qiskit", None),
 }
