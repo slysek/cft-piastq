@@ -20,6 +20,7 @@ BASE_URL = "https://dashboard.example"
 ENV_KEYS = (
     "PCSS_TOKEN",
     "PCSS_QAPI_TOKEN",
+    "CFT_PIASTQ_OWNER",
     "CFT_PIASTQ_DASHBOARD_API_URL",
     "CFT_PIASTQ_DASHBOARD_API_KEY",
     "CFT_PIASTQ_MODE",

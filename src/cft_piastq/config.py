@@ -22,6 +22,7 @@ _EXECUTION_MODES = frozenset({"auto", "managed", "direct", "fake"})
 class PiastQEnvironmentConfig:
     """Configuration values read from the process environment."""
 
+    owner: str | None
     token: str | None
     dashboard_api_url: str | None
     dashboard_api_key: str | None
@@ -65,6 +66,7 @@ def read_environment(
     )
 
     return PiastQEnvironmentConfig(
+        owner=source.get("CFT_PIASTQ_OWNER"),
         token=source.get("PCSS_TOKEN") or source.get("PCSS_QAPI_TOKEN"),
         dashboard_api_url=source.get("CFT_PIASTQ_DASHBOARD_API_URL"),
         dashboard_api_key=source.get("CFT_PIASTQ_DASHBOARD_API_KEY"),

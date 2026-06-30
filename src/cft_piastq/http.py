@@ -196,6 +196,17 @@ class DashboardClient:
                         or data.get("message")
                         or data
                     )
+                    if isinstance(detail, dict):
+                        code = detail.get("code")
+                        message = (
+                            detail.get("message")
+                            or detail.get("detail")
+                            or detail.get("error")
+                        )
+                        if code and message:
+                            detail = f"{code}: {message}"
+                        elif message:
+                            detail = message
                 else:
                     detail = data
 

@@ -21,13 +21,11 @@ def test_public_facades_import_without_optional_provider_modules() -> None:
     assert "qiskit_aer" not in sys.modules
 
 
-def test_public_facades_export_real_implementations() -> None:
-    from cft_piastq import PiastQJob, PiastQSampler
-    from cft_piastq.job import PiastQJob as PiastQJobImplementation
-    from cft_piastq.sampler import PiastQSampler as PiastQSamplerImplementation
+def test_sampler_requires_an_explicit_backend() -> None:
+    from cft_piastq import PiastQSampler
 
-    assert PiastQSampler is PiastQSamplerImplementation
-    assert PiastQJob is PiastQJobImplementation
+    with pytest.raises(TypeError):
+        PiastQSampler()
 
 
 def test_public_exception_hierarchy_is_available() -> None:
@@ -128,6 +126,7 @@ def test_read_environment_uses_expected_variables(
 
     registry_path = tmp_path / "registry.sqlite3"
     monkeypatch.setenv("PCSS_QAPI_TOKEN", "pcss-from-env")
+    monkeypatch.setenv("CFT_PIASTQ_OWNER", "szymo")
     monkeypatch.setenv("CFT_PIASTQ_DASHBOARD_API_URL", "https://dashboard.example")
     monkeypatch.setenv("CFT_PIASTQ_DASHBOARD_API_KEY", "dashboard-from-env")
     monkeypatch.setenv("CFT_PIASTQ_MODE", "managed")
@@ -136,6 +135,7 @@ def test_read_environment_uses_expected_variables(
 
     config = read_environment()
 
+    assert config.owner == "szymo"
     assert config.token == "pcss-from-env"
     assert config.dashboard_api_url == "https://dashboard.example"
     assert config.dashboard_api_key == "dashboard-from-env"

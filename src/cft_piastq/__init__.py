@@ -16,6 +16,7 @@ from .errors import (
     PiastQTimeoutError,
 )
 from .job import PiastQJob
+from .options import PiastQSamplerOptions
 from .sampler import PiastQSampler
 
 __all__ = [
@@ -31,5 +32,6 @@ __all__ = [
     "PiastQError",
     "PiastQJob",
     "PiastQSampler",
+    "PiastQSamplerOptions",
     "PiastQTimeoutError",
 ]

@@ -96,6 +96,30 @@ def test_auth_errors_raise_dashboard_auth_error(status_code: int) -> None:
         client.health()
 
 
+def test_nested_dashboard_error_message_is_extracted() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/runner/jobs"
+        return httpx.Response(
+            403,
+            json={
+                "error": {
+                    "code": "api_key_not_configured",
+                    "message": "API key authentication is not configured.",
+                }
+            },
+        )
+
+    client = make_client(handler)
+
+    with pytest.raises(DashboardAuthError) as exc_info:
+        client.submit_job({"shots": 10})
+
+    message = str(exc_info.value)
+    assert "API key authentication is not configured." in message
+    assert "api_key_not_configured" in message
+    assert "'code'" not in message
+
+
 def test_submit_job_posts_payload_and_returns_dashboard_job() -> None:
     payload = {"program": {"format": "qasm3", "source": "OPENQASM 3;"}, "shots": 10}
 
