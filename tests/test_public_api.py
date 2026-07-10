@@ -28,6 +28,15 @@ def test_sampler_requires_an_explicit_backend() -> None:
         PiastQSampler()
 
 
+def test_public_facades_export_real_implementations() -> None:
+    from cft_piastq import PiastQJob, PiastQSampler
+    from cft_piastq.job import PiastQJob as PiastQJobImplementation
+    from cft_piastq.sampler import PiastQSampler as PiastQSamplerImplementation
+
+    assert PiastQSampler is PiastQSamplerImplementation
+    assert PiastQJob is PiastQJobImplementation
+
+
 def test_public_exception_hierarchy_is_available() -> None:
     from cft_piastq import (
         DashboardAuthError,
