@@ -63,12 +63,11 @@ reported instead of silently switching to direct execution.
 
 ## Configuration and safety
 
-Pass configuration to `PiastQClient` or provide it through environment
-variables. Constructor arguments take precedence. Managed jobs require an
-owner and a dashboard URL; direct jobs require a PCSS token.
+Pass configuration directly to `PiastQClient`. Managed jobs require an owner
+and a dashboard URL; direct jobs require a PCSS token.
 
 Never put PCSS tokens or dashboard API keys in source code, notebooks, logs, or
-screenshots. Load them from environment variables or a secret manager instead.
+screenshots.
 
 See the [full usage guide](docs/website-documentation.md) for configuration,
 mode-specific examples, sampler options, job results, and security details.

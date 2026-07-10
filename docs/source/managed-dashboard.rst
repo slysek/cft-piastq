@@ -7,8 +7,6 @@ but protected operations such as cancellation may require it.
 
 .. code-block:: python
 
-   import os
-
    from qiskit import QuantumCircuit
 
    from cft_piastq import PiastQClient, PiastQSampler
@@ -20,9 +18,9 @@ but protected operations such as cancellation may require it.
 
    client = PiastQClient(
        mode="managed",
-       owner=os.environ["CFT_PIASTQ_OWNER"],
-       dashboard_api_url=os.environ["CFT_PIASTQ_DASHBOARD_API_URL"],
-       dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
+       owner="YOUR_OWNER",
+       dashboard_api_url="https://dashboard.example",
+       dashboard_api_key="YOUR_DASHBOARD_API_KEY",
    )
    sampler = PiastQSampler(
        client.backend,

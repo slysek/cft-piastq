@@ -14,4 +14,3 @@ objects provide.
    cft_piastq.counts
    cft_piastq.status
    cft_piastq.errors
-   cft_piastq.security

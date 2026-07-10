@@ -54,27 +54,9 @@ identifier, state, result, estimated counts, and cancellation API.
 
 ## Configuration
 
-Pass values directly to `PiastQClient` or set environment variables. Explicit
-constructor arguments always win over environment values.
-
-| Environment variable | Purpose |
-| --- | --- |
-| `CFT_PIASTQ_MODE` | Requested mode: `auto`, `managed`, `direct`, or `fake`. Defaults to `auto`. |
-| `CFT_PIASTQ_OWNER` | Owner recorded for managed job submissions. |
-| `PCSS_TOKEN` | PCSS token for direct execution. |
-| `PCSS_QAPI_TOKEN` | Alternative name for the PCSS token. |
-| `CFT_PIASTQ_DASHBOARD_API_URL` | Base URL of the PiastQ dashboard API. |
-| `CFT_PIASTQ_DASHBOARD_API_KEY` | Optional dashboard API key for protected dashboard operations. |
-| `CFT_PIASTQ_REGISTRY_PATH` | Location of the local SQLite registry used by direct mode. |
-| `CFT_PIASTQ_VERBOSE` | Set to a boolean-like value such as `true` or `false` to control the resolved-mode message. |
-
-For example, configure a process before running it:
-
-```powershell
-$env:CFT_PIASTQ_OWNER = "researcher"
-$env:CFT_PIASTQ_DASHBOARD_API_URL = "https://dashboard.example"
-$env:CFT_PIASTQ_MODE = "managed"
-```
+Pass the values needed by your application directly to `PiastQClient`. The
+examples use placeholders such as `YOUR_DASHBOARD_API_KEY`; replace them in your
+application with the values issued for your PiastQ account.
 
 ## Choose an execution mode
 
@@ -95,8 +77,6 @@ Submission needs an owner and a dashboard URL. A dashboard API key is optional
 for submission but may be required by protected operations such as cancellation.
 
 ```python
-import os
-
 from qiskit import QuantumCircuit
 
 from cft_piastq import PiastQClient, PiastQSampler
@@ -108,9 +88,9 @@ circuit.measure([0, 1], [0, 1])
 
 client = PiastQClient(
     mode="managed",
-    owner=os.environ["CFT_PIASTQ_OWNER"],
-    dashboard_api_url=os.environ["CFT_PIASTQ_DASHBOARD_API_URL"],
-    dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
+    owner="YOUR_OWNER",
+    dashboard_api_url="https://dashboard.example",
+    dashboard_api_key="YOUR_DASHBOARD_API_KEY",
 )
 sampler = PiastQSampler(client.backend, options={"cft_job_name": "Bell test"})
 job = sampler.run(circuit, shots=1024)
@@ -126,8 +106,6 @@ configured dashboard can receive best-effort audit events. The token stays
 local and is not sent in dashboard job payloads or stored in the local registry.
 
 ```python
-import os
-
 from qiskit import QuantumCircuit
 
 from cft_piastq import PiastQClient, PiastQSampler
@@ -136,7 +114,7 @@ circuit = QuantumCircuit(1, 1, name="direct-smoke-test")
 circuit.h(0)
 circuit.measure(0, 0)
 
-client = PiastQClient(mode="direct", token=os.environ["PCSS_TOKEN"])
+client = PiastQClient(mode="direct", token="YOUR_PCSS_TOKEN")
 job = PiastQSampler(client.backend).run(circuit, shots=200)
 
 print(job.status())
@@ -155,14 +133,12 @@ explicitly. This is a development and demonstration aid, not a calibrated
 digital twin of the hardware.
 
 ```python
-import os
-
 from cft_piastq import PiastQClient
 
 client = PiastQClient(
     mode="fake",
-    dashboard_api_url=os.environ["CFT_PIASTQ_DASHBOARD_API_URL"],
-    dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
+    dashboard_api_url="https://dashboard.example",
+    dashboard_api_key="YOUR_DASHBOARD_API_KEY",
 )
 noisy_backend = client.fake_backend(use_backend_noise=True)
 ```
@@ -173,16 +149,14 @@ Auto mode checks a configured dashboard first. When the runner is unavailable,
 it can use direct mode only if a PCSS token is available.
 
 ```python
-import os
-
 from cft_piastq import PiastQClient
 
 client = PiastQClient(
     mode="auto",
-    owner=os.environ.get("CFT_PIASTQ_OWNER"),
-    token=os.environ.get("PCSS_TOKEN"),
-    dashboard_api_url=os.environ.get("CFT_PIASTQ_DASHBOARD_API_URL"),
-    dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
+    owner="YOUR_OWNER",
+    token="YOUR_PCSS_TOKEN",
+    dashboard_api_url="https://dashboard.example",
+    dashboard_api_key="YOUR_DASHBOARD_API_KEY",
 )
 
 print(client.execution_mode)
@@ -230,7 +204,6 @@ when you need the original quasi probabilities or metadata.
 
 Treat PCSS tokens and dashboard API keys as secrets.
 
-- Read secrets from environment variables or a secret manager.
 - Do not put them in source files, notebooks, screenshots, or issue reports.
 - Do not print client configuration or raw HTTP headers in shared logs.
 - Rotate a credential if it was accidentally exposed.

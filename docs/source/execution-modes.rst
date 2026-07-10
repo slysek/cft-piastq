@@ -33,15 +33,13 @@ Use managed mode for work submitted through the dashboard:
 
 .. code-block:: python
 
-   import os
-
    from cft_piastq import PiastQClient
 
    client = PiastQClient(
        mode="managed",
-       owner=os.environ["CFT_PIASTQ_OWNER"],
-       dashboard_api_url=os.environ["CFT_PIASTQ_DASHBOARD_API_URL"],
-       dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
+       owner="YOUR_OWNER",
+       dashboard_api_url="https://dashboard.example",
+       dashboard_api_key="YOUR_DASHBOARD_API_KEY",
    )
 
 Direct
@@ -51,11 +49,9 @@ Use direct mode when a local PCSS token should be used:
 
 .. code-block:: python
 
-   import os
-
    from cft_piastq import PiastQClient
 
-   client = PiastQClient(mode="direct", token=os.environ["PCSS_TOKEN"])
+   client = PiastQClient(mode="direct", token="YOUR_PCSS_TOKEN")
 
 Fake
 ----
