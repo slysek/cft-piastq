@@ -1,40 +1,35 @@
 # cft-piastq
 
-`cft-piastq` is a Python package imported as `cft_piastq`. It will provide
-Qiskit-compatible facades for PiastQ managed dashboard jobs, direct PCSS/AQT
-execution, and local fake execution.
+`cft-piastq` is a Qiskit-compatible client for PiastQ execution. It gives the
+same Python-facing workflow for managed dashboard jobs, direct PCSS/AQT jobs,
+and local simulation.
 
-The managed path is available through the public `PiastQClient`,
-`PiastQSampler`, and `PiastQJob` facades. Create a client, take its resolved
-backend, pass that backend to `PiastQSampler`, and `sampler.run(...)` submits a
-QPY payload to the dashboard runner.
+Import the package as `cft_piastq`.
 
-## Installation
+## Install
 
-```powershell
-python -m pip install -e .[dev]
-```
-
-Optional extras planned for later waves:
+Install the base package from PyPI:
 
 ```powershell
-python -m pip install -e .[direct]
-python -m pip install -e .[fake]
+python -m pip install cft-piastq
 ```
 
-## Modes
+Install an extra when you need its execution mode:
 
-- `managed`: submit QPY payloads to a dashboard runner API.
-- `direct`: run through local PCSS/AQT credentials and adapters.
-- `fake`: run locally through an Aer-backed simulator adapter.
-- `auto`: prefer managed mode when available and fall back only under explicit
-  safe rules.
+```powershell
+python -m pip install "cft-piastq[direct]"  # PCSS/AQT provider integration
+python -m pip install "cft-piastq[fake]"    # local Qiskit Aer simulation
+```
 
-## Managed Sampler
+For development from a checkout:
 
-Use `PiastQSampler` when you want jobs to go through the PiastQ dashboard. The
-raw `qiskit_aqt_provider.primitives.AQTSampler` is a provider sampler and does
-not know about the managed dashboard API.
+```powershell
+python -m pip install -e ".[dev]"
+```
+
+## Quick start
+
+The fake mode is useful for a local smoke test. It requires the `fake` extra.
 
 ```python
 from qiskit import QuantumCircuit
@@ -46,26 +41,34 @@ circuit.h(0)
 circuit.cx(0, 1)
 circuit.measure([0, 1], [0, 1])
 
-client = PiastQClient(
-    owner="szymo",
-    mode="managed",
-    dashboard_api_url="https://piastq-dashboard.example",
-    dashboard_api_key="dashboard-key",
-    verbose=False,
-)
+client = PiastQClient(mode="fake")
+sampler = PiastQSampler(client.backend)
 
-sampler = PiastQSampler(
-    client.backend,
-    options={"cft_job_name": "Bell smoke test"},
-)
-
-job = sampler.run(circuits=[circuit], shots=200)
-result = job.result()
-counts = job.counts(num_bits=2)
+job = sampler.run(circuit, shots=1024)
+counts = job.counts()[0]
+print(counts)
 ```
 
-## Security Model
+## Execution modes
 
-PCSS tokens and dashboard API keys are read from constructor arguments or
-environment variables. The package must not send PCSS tokens to the dashboard,
-persist secrets in SQLite, or expose raw secret values in public exceptions.
+| Mode | Use it when |
+| --- | --- |
+| `managed` | Jobs should be submitted through a PiastQ dashboard runner. |
+| `direct` | You have a local PCSS token and want to submit directly to the provider. |
+| `fake` | You want local Aer simulation for development or tests. |
+| `auto` | You want managed execution when the dashboard is available, with direct execution as the only fallback. |
+
+`auto` never falls back to fake mode. A dashboard authentication error is also
+reported instead of silently switching to direct execution.
+
+## Configuration and safety
+
+Pass configuration to `PiastQClient` or provide it through environment
+variables. Constructor arguments take precedence. Managed jobs require an
+owner and a dashboard URL; direct jobs require a PCSS token.
+
+Never put PCSS tokens or dashboard API keys in source code, notebooks, logs, or
+screenshots. Load them from environment variables or a secret manager instead.
+
+See the [full usage guide](docs/website-documentation.md) for configuration,
+mode-specific examples, sampler options, job results, and security details.

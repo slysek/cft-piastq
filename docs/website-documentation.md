@@ -1,60 +1,34 @@
-# cft-piastq
+# cft-piastq user guide
 
-`cft-piastq` to biblioteka Pythona dla zespołu pracującego z PiastQ, Qiskit i
-zarządzanym wykonywaniem zadań kwantowych. Pakiet importuje się jako
-`cft_piastq` i porządkuje warstwę kliencką wokół trzech ścieżek:
+`cft-piastq` provides a Qiskit-compatible interface for PiastQ jobs. Use it to
+submit circuits through a managed dashboard, run directly with a PCSS/AQT
+provider, or simulate locally with Qiskit Aer. The package is imported as
+`cft_piastq`.
 
-- zadań obsługiwanych przez zarządzany dashboard,
-- bezpośredniej pracy z lokalnym tokenem PCSS/AQT,
-- lokalnego trybu testowego opartego o backend fake.
+## Installation
 
-Biblioteka nie zastępuje Qiskita. Jej rolą jest konfiguracja klienta, wybór
-trybu wykonania, komunikacja z dashboardem, serializacja obwodów i odtwarzanie
-wyników w formacie zgodnym z Qiskitem.
-
-W wersji `0.1.0` gotowy jest stabilny rdzeń: `PiastQClient`, backendy
-uchwytowe, zarządzany `PiastQSampler`, `PiastQJob`, klient HTTP dashboardu, QPY,
-rekonstrukcja wyników, statusy, błędy i redakcja sekretów. Warstwy samplera dla
-trybów `direct` i `fake` są nadal kolejnym etapem.
-
-## Dla kogo jest ta biblioteka
-
-`cft-piastq` jest przeznaczone dla osób, które chcą pisać notebooki i skrypty
-Qiskitowe bez przepisywania za każdym razem logiki wyboru środowiska.
-
-Docelowy kontrakt biblioteki pozwala prowadzić ten sam eksperyment:
-
-- przez dashboard, gdy dostępny jest zarządzany runner,
-- lokalnie, gdy użytkownik ma token PCSS,
-- w trybie fake, gdy celem jest test, demonstracja albo szybka walidacja
-  przepływu danych.
-
-Najważniejszy efekt: kod eksperymentu pozostaje blisko Qiskita, a logika
-operacyjna trafia do jednej biblioteki.
-
-## Instalacja
-
-W repozytorium developerskim:
+Install the base package from PyPI:
 
 ```powershell
-python -m pip install -e .[dev]
+python -m pip install cft-piastq
 ```
 
-Opcjonalne zależności są rozdzielone według trybu pracy:
+Install one of the optional extras when required:
 
 ```powershell
-python -m pip install -e .[direct]
-python -m pip install -e .[fake]
+python -m pip install "cft-piastq[direct]"  # PCSS/AQT integration
+python -m pip install "cft-piastq[fake]"    # Qiskit Aer simulation
 ```
 
-`direct` instaluje integracje potrzebne do ścieżki PCSS/AQT. `fake` instaluje
-zależności potrzebne do lokalnego backendu symulacyjnego.
+Contributors working from a repository checkout can use:
 
-## Szybki start
+```powershell
+python -m pip install -e ".[dev]"
+```
 
-Najprostszy punkt wejścia to `PiastQClient`. Klient czyta konfigurację z
-argumentów konstruktora albo ze zmiennych środowiskowych, wybiera tryb pracy i
-wystawia uchwyt `backend`.
+## Quick start
+
+This local example uses fake mode and requires `cft-piastq[fake]`.
 
 ```python
 from qiskit import QuantumCircuit
@@ -66,420 +40,201 @@ circuit.h(0)
 circuit.cx(0, 1)
 circuit.measure([0, 1], [0, 1])
 
-client = PiastQClient(
-    owner="szymo",
-    mode="managed",
-    dashboard_api_url="https://piastq-dashboard.example",
-    dashboard_api_key="dashboard-key",
-    verbose=False,
-)
+client = PiastQClient(mode="fake")
+sampler = PiastQSampler(client.backend)
+job = sampler.run(circuit, shots=1024)
 
-sampler = PiastQSampler(
-    client.backend,
-    options={"cft_job_name": "Bell smoke test"},
-)
-
-job = sampler.run(circuits=[circuit], shots=200)
-result = job.result()
-counts = job.counts(num_bits=2)
+print(job.status())
+print(job.counts()[0])
 ```
 
-Dla trybu `managed` lokalny token PCSS nie jest wymagany. Biblioteka sprawdza
-zdrowie zarządzanego runnera po stronie dashboardu i dopiero wtedy wybiera
-backend `managed`.
+`PiastQClient` resolves the execution mode and exposes a backend handle.
+`PiastQSampler` submits circuits to that backend. `PiastQJob` exposes the job
+identifier, state, result, estimated counts, and cancellation API.
 
-Jeżeli zadanie ma przejść przez dashboard, używaj `PiastQSampler`. Surowy
-`qiskit_aqt_provider.primitives.AQTSampler` jest samplerem providera AQT i nie
-zna endpointów zarządzanego dashboardu.
+## Configuration
 
-## Tryby wykonania
+Pass values directly to `PiastQClient` or set environment variables. Explicit
+constructor arguments always win over environment values.
 
-`PiastQClient` obsługuje cztery wartości `mode`.
-
-| Tryb | Zachowanie |
+| Environment variable | Purpose |
 | --- | --- |
-| `managed` | Wymaga adresu dashboard API. Klient wykonuje healthcheck runnera i wybiera backend zarządzany. |
-| `direct` | Wymaga lokalnego tokenu PCSS. Klient wybiera backend bezpośredni i nie potrzebuje dashboardu. |
-| `fake` | Zwraca lokalny backend fake. Może opcjonalnie pobrać model szumu z dashboardu. |
-| `auto` | Próbuje użyć `managed`, jeżeli dashboard jest skonfigurowany i zdrowy. Gdy dashboard jest niedostępny, przechodzi na `direct` tylko wtedy, gdy dostępny jest lokalny token PCSS. |
+| `CFT_PIASTQ_MODE` | Requested mode: `auto`, `managed`, `direct`, or `fake`. Defaults to `auto`. |
+| `CFT_PIASTQ_OWNER` | Owner recorded for managed job submissions. |
+| `PCSS_TOKEN` | PCSS token for direct execution. |
+| `PCSS_QAPI_TOKEN` | Alternative name for the PCSS token. |
+| `CFT_PIASTQ_DASHBOARD_API_URL` | Base URL of the PiastQ dashboard API. |
+| `CFT_PIASTQ_DASHBOARD_API_KEY` | Optional dashboard API key for protected dashboard operations. |
+| `CFT_PIASTQ_REGISTRY_PATH` | Location of the local SQLite registry used by direct mode. |
+| `CFT_PIASTQ_VERBOSE` | Set to a boolean-like value such as `true` or `false` to control the resolved-mode message. |
 
-Błąd autoryzacji dashboardu (`401` albo `403`) jest traktowany jako błąd
-twardy. W takim przypadku `auto` nie przechodzi po cichu na tryb `direct`,
-ponieważ mogłoby to ukryć problem z uprawnieniami.
+For example, configure a process before running it:
 
-## Konfiguracja
+```powershell
+$env:CFT_PIASTQ_OWNER = "researcher"
+$env:CFT_PIASTQ_DASHBOARD_API_URL = "https://dashboard.example"
+$env:CFT_PIASTQ_MODE = "managed"
+```
 
-Konfigurację można przekazać jawnie:
+## Choose an execution mode
+
+| Mode | Requirements | Behavior |
+| --- | --- | --- |
+| `managed` | Dashboard URL and an owner | Checks the runner and submits QPY circuit data through the dashboard. |
+| `direct` | PCSS token and the `direct` extra | Submits through the local PCSS/AQT provider integration. |
+| `fake` | The `fake` extra | Runs locally with Qiskit Aer. |
+| `auto` | Dashboard configuration, a PCSS token, or both | Uses managed mode when the runner is available; otherwise it may use direct mode. |
+
+`auto` never selects fake mode. If the dashboard returns an authentication error,
+`auto` surfaces that error rather than falling back to direct execution.
+
+### Managed mode
+
+Managed mode is the normal choice when your team uses a PiastQ dashboard.
+Submission needs an owner and a dashboard URL. A dashboard API key is optional
+for submission but may be required by protected operations such as cancellation.
 
 ```python
+import os
+
+from qiskit import QuantumCircuit
+
+from cft_piastq import PiastQClient, PiastQSampler
+
+circuit = QuantumCircuit(2, 2, name="bell")
+circuit.h(0)
+circuit.cx(0, 1)
+circuit.measure([0, 1], [0, 1])
+
+client = PiastQClient(
+    mode="managed",
+    owner=os.environ["CFT_PIASTQ_OWNER"],
+    dashboard_api_url=os.environ["CFT_PIASTQ_DASHBOARD_API_URL"],
+    dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
+)
+sampler = PiastQSampler(client.backend, options={"cft_job_name": "Bell test"})
+job = sampler.run(circuit, shots=1024)
+
+print(job.job_id())
+print(job.result(timeout=120))
+```
+
+### Direct mode
+
+Direct mode uses a local PCSS token. It does not need a dashboard, although a
+configured dashboard can receive best-effort audit events. The token stays
+local and is not sent in dashboard job payloads or stored in the local registry.
+
+```python
+import os
+
+from qiskit import QuantumCircuit
+
+from cft_piastq import PiastQClient, PiastQSampler
+
+circuit = QuantumCircuit(1, 1, name="direct-smoke-test")
+circuit.h(0)
+circuit.measure(0, 0)
+
+client = PiastQClient(mode="direct", token=os.environ["PCSS_TOKEN"])
+job = PiastQSampler(client.backend).run(circuit, shots=200)
+
+print(job.status())
+```
+
+### Fake mode
+
+Fake mode runs locally and makes no dashboard calls by default.
+
+```python
+client = PiastQClient(mode="fake")
+```
+
+To simulate with a dashboard-provided noise snapshot, create a fake backend
+explicitly. This is a development and demonstration aid, not a calibrated
+digital twin of the hardware.
+
+```python
+import os
+
+from cft_piastq import PiastQClient
+
+client = PiastQClient(
+    mode="fake",
+    dashboard_api_url=os.environ["CFT_PIASTQ_DASHBOARD_API_URL"],
+    dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
+)
+noisy_backend = client.fake_backend(use_backend_noise=True)
+```
+
+### Auto mode
+
+Auto mode checks a configured dashboard first. When the runner is unavailable,
+it can use direct mode only if a PCSS token is available.
+
+```python
+import os
+
+from cft_piastq import PiastQClient
+
 client = PiastQClient(
     mode="auto",
-    owner="szymo",
-    token="local-pcss-token",
-    dashboard_api_url="https://piastq-dashboard.example",
-    dashboard_api_key="dashboard-key",
-    registry_path="jobs.sqlite3",
-    verbose=False,
+    owner=os.environ.get("CFT_PIASTQ_OWNER"),
+    token=os.environ.get("PCSS_TOKEN"),
+    dashboard_api_url=os.environ.get("CFT_PIASTQ_DASHBOARD_API_URL"),
+    dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
 )
+
+print(client.execution_mode)
 ```
 
-Albo przez zmienne środowiskowe:
+## Sampler options and jobs
 
-| Zmienna | Znaczenie |
+Pass options when creating a sampler or when calling `run()`. Keys beginning
+with `cft_` are handled by this package; other options are retained for direct
+or fake provider adapters.
+
+| Option | Meaning |
 | --- | --- |
-| `CFT_PIASTQ_OWNER` | Właściciel joba widoczny w dashboardzie. Można też przekazać `owner=` w konstruktorze. |
-| `CFT_PIASTQ_MODE` | `auto`, `managed`, `direct` albo `fake`. Domyślnie `auto`. |
-| `PCSS_TOKEN` | Lokalny token PCSS dla trybu `direct`. |
-| `PCSS_QAPI_TOKEN` | Alternatywna nazwa lokalnego tokenu PCSS. |
-| `CFT_PIASTQ_DASHBOARD_API_URL` | Bazowy adres API dashboardu. |
-| `CFT_PIASTQ_DASHBOARD_API_KEY` | Klucz API dashboardu. |
-| `CFT_PIASTQ_VERBOSE` | Wartość logiczna, np. `true`, `false`, `1`, `0`, `yes`, `no`. |
-| `CFT_PIASTQ_REGISTRY_PATH` | Ścieżka lokalnego rejestru zadań dla trybu direct. |
+| `cft_job_name` | Display name. A single circuit's name is used when this is omitted. |
+| `cft_description` | Optional description for managed jobs and direct audit metadata. |
+| `cft_fake_simulator_adapter` | Test hook for supplying a fake execution adapter. |
 
-Argumenty konstruktora mają pierwszeństwo przed zmiennymi środowiskowymi.
-
-## Managed dashboard
-
-Tryb `managed` służy do pracy z runnerem po stronie dashboardu. Klient tworzy
-`DashboardClient`, wykonuje `GET /api/runner/health` i dopiero wtedy uznaje
-backend za dostępny.
+Pass `shots` explicitly to `run()` when possible. It takes precedence over a
+`shots` value in provider options.
 
 ```python
-from qiskit import QuantumCircuit
-
-from cft_piastq import PiastQClient, PiastQSampler
-
-circuit = QuantumCircuit(2, 2, name="bell")
-circuit.h(0)
-circuit.cx(0, 1)
-circuit.measure([0, 1], [0, 1])
-
-client = PiastQClient(
-    owner="szymo",
-    mode="managed",
-    dashboard_api_url="https://piastq-dashboard.example",
-    dashboard_api_key="dashboard-key",
-    verbose=False,
-)
-
-backend = client.backend
-dashboard = client.dashboard_client
-
 sampler = PiastQSampler(
-    backend,
-    options={
-        "with_progress_bar": False,
-        "cft_job_name": "Bell smoke test",
-        "cft_description": "2Q Bell test before RB run",
-    },
+    client.backend,
+    options={"cft_job_name": "Experiment 42"},
 )
-
-job = sampler.run(circuits=[circuit], shots=200)
-result = job.result()
-counts = job.counts(num_bits=2)
+job = sampler.run(circuit, shots=4096, cft_description="Parameter sweep")
 ```
 
-W tym trybie biblioteka nie przesyła lokalnego tokenu PCSS do dashboardu.
-Dashboard dostaje tylko klucz API dashboardu, jeżeli dana operacja go wymaga.
-Opcje z prefiksem `cft_` trafiają do metadanych joba dashboardowego, a nie do
-opcji providera.
-
-## Tryb direct
-
-Tryb `direct` jest przeznaczony do lokalnej ścieżki PCSS/AQT. W obecnej wersji
-klient wybiera i zwraca backend uchwytowy dla tej ścieżki; pełne wykonywanie
-zadań przez sampler należy do kolejnego etapu API.
-
-Jeżeli token nie zostanie podany ani przez konstruktor, ani przez środowisko,
-klient rzuci `DirectModeUnavailableError`.
+Jobs expose these methods:
 
 ```python
-from cft_piastq import PiastQClient
-
-client = PiastQClient(
-    owner="szymo",
-    mode="direct",
-    token="local-pcss-token",
-    verbose=False,
-)
-
-assert client.execution_mode == "direct"
-assert client.backend.mode == "direct"
+job_id = job.job_id()
+status = job.status()
+result = job.result(timeout=120)
+counts = job.counts()
+cancelled_status = job.cancel()
 ```
 
-Token nie jest widoczny w reprezentacji tekstowej backendu, dzięki czemu
-przypadkowy `repr(client.backend)` nie ujawnia sekretu w logach.
-
-## Tryb fake
-
-Tryb `fake` jest lekki i nadaje się do testów oraz lokalnego sprawdzania
-przepływu aplikacji. W wersji `0.1.0` zwraca backend uchwytowy; pełna ścieżka
-samplera fake jest częścią dalszego rozwoju.
-
-```python
-from cft_piastq import PiastQClient
-
-client = PiastQClient(mode="fake", verbose=False)
-
-assert client.backend.mode == "fake"
-```
-
-Można też włączyć model szumu pobierany z dashboardu:
-
-```python
-client = PiastQClient(
-    owner="szymo",
-    mode="fake",
-    use_backend_noise=True,
-    dashboard_api_url="https://piastq-dashboard.example",
-    dashboard_api_key="dashboard-key",
-    verbose=False,
-)
-```
-
-Wtedy klient wywoła endpoint `GET /api/noise-model/latest` i zapisze odpowiedź
-w backendzie fake.
-
-## Klient HTTP dashboardu
-
-Niższy poziom API jest dostępny przez `DashboardClient`.
-
-```python
-from cft_piastq.http import DashboardClient
-
-dashboard = DashboardClient(
-    "https://piastq-dashboard.example",
-    api_key="dashboard-key",
-)
-
-health = dashboard.health()
-job = dashboard.submit_job({"shots": 200})
-fresh_status = dashboard.get_job(job["id"])
-result = dashboard.get_result(job["id"])
-dashboard.cancel_job(job["id"])
-dashboard.close()
-```
-
-Obsługiwane endpointy:
-
-| Metoda | Ścieżka | Metoda Pythona |
-| --- | --- | --- |
-| `GET` | `/api/runner/health` | `health()` |
-| `POST` | `/api/runner/jobs` | `submit_job(payload)` |
-| `GET` | `/api/runner/jobs/{id}` | `get_job(server_job_id)` |
-| `GET` | `/api/runner/jobs/{id}/result` | `get_result(server_job_id)` |
-| `POST` | `/api/runner/jobs/{id}/cancel` | `cancel_job(server_job_id)` |
-| `GET` | `/api/noise-model/latest` | `get_noise_model()` |
-
-`cancel_job()` wymaga klucza API dashboardu. Jeżeli go brakuje, biblioteka
-zatrzymuje operację przed wysłaniem requestu.
-
-## Serializacja obwodów Qiskit
-
-Biblioteka używa QPY jako przenośnego formatu obwodów Qiskit. Payload jest
-kodowany do base64, dzięki czemu można go przekazać jako JSON.
-
-```python
-from qiskit import QuantumCircuit
-from cft_piastq.serialization import (
-    circuit_metadata,
-    circuit_to_qpy_base64,
-    qpy_base64_to_circuit,
-)
-
-circuit = QuantumCircuit(2, 2, name="bell")
-circuit.h(0)
-circuit.cx(0, 1)
-circuit.measure([0, 1], [0, 1])
-
-payload = circuit_to_qpy_base64(circuit)
-restored = qpy_base64_to_circuit(payload)
-metadata = circuit_metadata(circuit, index=0)
-```
-
-`circuit_metadata()` zwraca pola przydatne do dashboardu i audytu:
-
-- indeks obwodu,
-- nazwę obwodu,
-- liczbę kubitów i bitów klasycznych,
-- głębokość,
-- zliczenia operacji,
-- użyte kubity,
-- użyte sprzężenia dwukubitowe.
-
-Dostępne są też funkcje dla wielu obwodów:
-
-```python
-from cft_piastq.serialization import (
-    circuits_to_qpy_base64,
-    qpy_base64_to_circuits,
-)
-
-encoded = circuits_to_qpy_base64([circuit])
-circuits = qpy_base64_to_circuits(encoded)
-```
-
-Pusty zestaw obwodów jest odrzucany, a błędy QPY/base64 są opakowane w publiczny
-`PiastQError` z oczyszczonym komunikatem.
-
-## Wyniki i estymowane counts
-
-Dashboard może zwrócić wynik w JSON-ie, a biblioteka odtwarza z niego
-`qiskit.primitives.SamplerResult`.
-
-```python
-from cft_piastq.results import sampler_result_from_json
-from cft_piastq.counts import estimated_counts_from_result
-
-payload = {
-    "shots": 200,
-    "quasi_dists": [{"0": 0.5, "3": 0.5}],
-    "metadata": [{"circuit_index": 0, "circuit_name": "bell"}],
-}
-
-result = sampler_result_from_json(payload)
-counts = estimated_counts_from_result(result, shots=200, num_bits=2)
-```
-
-`estimated_counts_from_result()` przelicza quasi-prawdopodobieństwa na wygodny
-widok counts. To estymacja do prezentacji i analizy, a nie surowe counts
-zwracane bezpośrednio przez provider.
-
-## Statusy zadań
-
-Provider i dashboard mogą używać różnych nazw statusów. `normalize_job_status()`
-sprowadza je do wspólnego zestawu literałów.
-
-```python
-from cft_piastq.status import normalize_job_status
-
-assert normalize_job_status("DONE") == "succeeded"
-assert normalize_job_status("in-progress") == "running"
-assert normalize_job_status("something-new") == "unknown"
-```
-
-Wspólne statusy:
-
-- `queued`,
-- `running`,
-- `succeeded`,
-- `failed`,
-- `cancelled`,
-- `stale`,
-- `cancel_requested`,
-- `unknown`.
-
-## Błędy publiczne
-
-Wszystkie publiczne wyjątki dziedziczą po `PiastQError`.
-
-```python
-from cft_piastq import (
-    DashboardAuthError,
-    DashboardUnavailableError,
-    DirectModeUnavailableError,
-    FakeBackendError,
-    ManagedJobError,
-    PiastQConfigurationError,
-    PiastQError,
-    PiastQTimeoutError,
-)
-```
-
-Najczęstsze przypadki:
-
-| Wyjątek | Kiedy występuje |
-| --- | --- |
-| `PiastQConfigurationError` | Niepełna albo nieprawidłowa konfiguracja klienta. |
-| `DashboardUnavailableError` | Dashboard jest niedostępny albo runner jest wyłączony. |
-| `DashboardAuthError` | Dashboard zwrócił `401` albo `403`. |
-| `ManagedJobError` | Operacja na zadaniu zarządzanym nie powiodła się. |
-| `DirectModeUnavailableError` | Tryb direct nie może ruszyć bez tokenu PCSS. |
-| `FakeBackendError` | Tryb fake nie może pobrać lub użyć wymaganych danych. |
-| `PiastQTimeoutError` | Oczekiwanie na zadanie przekroczyło limit czasu. |
-
-## Bezpieczeństwo sekretów
-
-`cft-piastq` ma wbudowane helpery do czyszczenia komunikatów z sekretów.
-Dotyczy to tokenów PCSS, kluczy dashboardu, nagłówków `Authorization` oraz
-długich ciągów wyglądających jak klucze API.
-
-```python
-from cft_piastq.security import redact_secrets, safe_error_message
-
-message = redact_secrets(
-    "PCSS_TOKEN=secret CFT_PIASTQ_DASHBOARD_API_KEY=dashboard-key job=bell"
-)
-
-assert "secret" not in message
-assert "dashboard-key" not in message
-assert "job=bell" in message
-```
-
-Ta sama redakcja jest stosowana w komunikatach błędów HTTP i QPY, aby logi były
-użyteczne, ale nie ujawniały danych uwierzytelniających.
-
-## Aktualny stan API
-
-W wersji `0.1.0` gotowe i testowane są:
-
-- wybór trybu przez `PiastQClient`,
-- backendy uchwytowe dla `managed`, `direct` i `fake`,
-- `PiastQSampler` dla trybu `managed`,
-- `PiastQJob` z `job_id()`, `status()`, `result()`, `cancel()` i `counts()`,
-- klient HTTP dashboardu,
-- serializacja i deserializacja QPY,
-- rekonstrukcja `SamplerResult` z JSON-a,
-- estymowane counts z quasi-dystrybucji,
-- normalizacja statusów,
-- publiczna hierarchia błędów,
-- redakcja sekretów.
-
-`PiastQSampler` obsługuje obecnie backend zarządzany. Dla backendów `direct` i
-`fake` publiczne uchwyty są gotowe, ale wykonawcze adaptery samplerów pozostają
-poza zakresem tej wersji.
-
-## Minimalny przykład integracyjny
-
-Pełny przykład przepływu przez zarządzany sampler:
-
-```python
-from qiskit import QuantumCircuit
-
-from cft_piastq import PiastQClient, PiastQSampler
-
-circuit = QuantumCircuit(2, 2, name="bell")
-circuit.h(0)
-circuit.cx(0, 1)
-circuit.measure([0, 1], [0, 1])
-
-client = PiastQClient(
-    owner="szymo",
-    mode="managed",
-    dashboard_api_url="https://piastq-dashboard.example",
-    dashboard_api_key="dashboard-key",
-    verbose=False,
-)
-
-sampler = PiastQSampler(client.backend)
-sampler.options.cft_job_name = "Bell smoke test"
-
-job = sampler.run(circuits=[circuit], shots=200)
-result = job.result()
-counts = job.counts(num_bits=2)
-```
-
-Ten przykład pokazuje obecny stabilny rdzeń: Qiskitowy obwód jest serializowany
-do QPY, opisany metadanymi i wysłany do dashboardu przez `PiastQSampler`.
-
-## Filozofia projektu
-
-`cft-piastq` trzyma granice odpowiedzialności jasno:
-
-- Qiskit pozostaje źródłem obwodów i wyników,
-- dashboard odpowiada za zarządzane wykonanie i historię zadań,
-- lokalny tryb direct odpowiada za ścieżkę PCSS/AQT,
-- biblioteka scala te ścieżki w jeden, jawnie konfigurowalny interfejs.
-
-To pozwala rozwijać kolejne elementy, takie jak direct PCSS, retry, lokalny
-rejestr i obsługa fake backendu, bez zmiany podstawowego kontraktu użytkownika.
+`result()` returns a Qiskit-compatible `SamplerResult`. `counts()` is a
+convenience view: it converts quasi distributions to estimated integer counts
+by multiplying probabilities by the shot count and rounding. Use `result()`
+when you need the original quasi probabilities or metadata.
+
+## Security
+
+Treat PCSS tokens and dashboard API keys as secrets.
+
+- Read secrets from environment variables or a secret manager.
+- Do not put them in source files, notebooks, screenshots, or issue reports.
+- Do not print client configuration or raw HTTP headers in shared logs.
+- Rotate a credential if it was accidentally exposed.
+
+Managed payloads contain QPY circuit data and job metadata, but never PCSS
+tokens. Direct-mode registry rows and public error messages redact token-like
+values where possible; that does not replace safe secret handling by callers.
