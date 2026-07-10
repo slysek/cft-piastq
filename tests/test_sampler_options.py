@@ -9,6 +9,7 @@ import cft_piastq.client as client_module
 from cft_piastq.backend import ManagedPiastQBackend
 from cft_piastq.options import PiastQSamplerOptions, split_cft_options
 from cft_piastq.sampler import PiastQSampler
+from cft_piastq.serialization import qpy_base64_to_circuits
 
 
 class RecordingDashboardClient:
@@ -100,7 +101,9 @@ def test_managed_sampler_submits_qpy_payload_without_provider_options() -> None:
     assert payload["shots"] == 200
     assert payload["client_version"] == "0.1.0"
     assert "provider_options" not in payload
-    assert payload["circuits"][0]["metadata"]["circuit_name"] == "bell"  # type: ignore[index]
+    circuit_payload = payload["circuits"][0]  # type: ignore[index]
+    assert set(circuit_payload) == {"qpy_base64"}
+    assert qpy_base64_to_circuits(circuit_payload["qpy_base64"])[0].name == "bell"
 
 
 def test_managed_sampler_uses_run_job_name_when_sampler_name_absent() -> None:
@@ -254,4 +257,6 @@ def test_managed_sampler_submits_payload_from_client_backend(
     assert job.job_id() == "srv-managed-1"
     assert payload["owner"] == "szymo"
     assert payload["shots"] == 200
-    assert payload["circuits"][0]["metadata"]["circuit_name"] == "bell"  # type: ignore[index]
+    circuit_payload = payload["circuits"][0]  # type: ignore[index]
+    assert set(circuit_payload) == {"qpy_base64"}
+    assert qpy_base64_to_circuits(circuit_payload["qpy_base64"])[0].name == "bell"
