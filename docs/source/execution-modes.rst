@@ -1,88 +1,73 @@
-Execution Modes
+Execution modes
 ===============
 
-``PiastQClient`` accepts four requested modes: ``auto``, ``managed``,
-``direct``, and ``fake``. After initialization, ``client.execution_mode`` is one
-of the resolved modes: ``managed``, ``direct``, or ``fake``.
-
-Mode summary
-------------
+Choose a mode with ``PiastQClient(mode=...)``. The mode describes where the
+circuit runs, not how the circuit is written.
 
 .. list-table::
    :header-rows: 1
 
    * - Mode
-     - Behavior
+     - Requirements
+     - What it does
    * - ``managed``
-     - Requires a dashboard API URL. The client checks runner health and uses a
-       managed dashboard backend.
+     - Dashboard URL and job owner
+     - Submits QPY circuit data to the PiastQ dashboard runner.
    * - ``direct``
-     - Requires a local PCSS token. The client returns a direct PCSS/AQT backend
-       handle.
+     - PCSS token and the ``direct`` extra
+     - Runs through the local PCSS/AQT provider integration.
    * - ``fake``
-     - Returns a local fake backend handle. It can optionally fetch a noise
-       model from the dashboard.
+     - The ``fake`` extra
+     - Runs a local Qiskit Aer simulation.
    * - ``auto``
-     - Prefers ``managed`` when a configured dashboard is healthy. If the
-       dashboard is unavailable, it falls back to ``direct`` only when a local
-       PCSS token is available.
+     - Dashboard configuration, a PCSS token, or both
+     - Uses managed mode when available; otherwise it may use direct mode.
 
-Managed mode
-------------
+``auto`` never falls back to fake mode. A dashboard authentication error is
+reported instead of silently changing to direct execution.
 
-Use ``managed`` when jobs should be submitted through the dashboard runner:
+Managed
+-------
+
+Use managed mode for work submitted through the dashboard:
 
 .. code-block:: python
 
+   import os
+
+   from cft_piastq import PiastQClient
+
    client = PiastQClient(
-       owner="szymo",
        mode="managed",
-       dashboard_api_url="https://piastq-dashboard.example",
-       dashboard_api_key="dashboard-key",
-       verbose=False,
+       owner=os.environ["CFT_PIASTQ_OWNER"],
+       dashboard_api_url=os.environ["CFT_PIASTQ_DASHBOARD_API_URL"],
+       dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
    )
 
-The client calls ``GET /api/runner/health`` before the backend is considered
-available. Dashboard authorization errors are treated as hard failures.
+Direct
+------
 
-Direct mode
------------
-
-Use ``direct`` when local PCSS/AQT credentials should drive execution:
+Use direct mode when a local PCSS token should be used:
 
 .. code-block:: python
 
-   client = PiastQClient(
-       owner="szymo",
-       mode="direct",
-       token="local-pcss-token",
-       verbose=False,
-   )
+   import os
 
-If no token is provided through the constructor or environment, the client raises
-``DirectModeUnavailableError``.
+   from cft_piastq import PiastQClient
 
-Fake mode
----------
+   client = PiastQClient(mode="direct", token=os.environ["PCSS_TOKEN"])
 
-Use ``fake`` for tests, demos, and local flow validation:
+Fake
+----
+
+Use fake mode for local development and tests:
 
 .. code-block:: python
 
-   client = PiastQClient(mode="fake", verbose=False)
+   from cft_piastq import PiastQClient
 
-To attach the latest dashboard-provided noise model:
+   client = PiastQClient(mode="fake")
 
-.. code-block:: python
-
-   client = PiastQClient(
-       owner="szymo",
-       mode="fake",
-       use_backend_noise=True,
-       dashboard_api_url="https://piastq-dashboard.example",
-       dashboard_api_key="dashboard-key",
-       verbose=False,
-   )
-
-The current public fake backend is a handle. Full fake sampler execution is a
-future adapter layer.
+To use a dashboard-provided noise snapshot, call
+``client.fake_backend(use_backend_noise=True)`` with a dashboard URL configured.
+This is useful for simulation, not hardware calibration.

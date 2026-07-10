@@ -1,14 +1,23 @@
 cft-piastq
 ==========
 
-``cft-piastq`` is a Python package imported as ``cft_piastq``. It provides
-Qiskit-compatible facades for PiastQ managed dashboard jobs, direct PCSS/AQT
-execution handles, and local fake execution handles.
+``cft-piastq`` is a Qiskit-compatible client for PiastQ execution. Use it to
+submit a circuit through a managed dashboard, run it directly with PCSS/AQT, or
+simulate it locally with Qiskit Aer.
 
-The documentation is built with Sphinx and the Furo theme, matching the
-documentation style used by the Qiskit AQT provider: a searchable content area,
-left-hand navigation, right-hand page contents, automatic API pages, and
-light/dark presentation.
+Install the package from PyPI:
+
+.. code-block:: powershell
+
+   python -m pip install cft-piastq
+
+For a local smoke test, install the fake-execution extra:
+
+.. code-block:: powershell
+
+   python -m pip install "cft-piastq[fake]"
+
+The package is imported as ``cft_piastq``.
 
 .. toctree::
    :maxdepth: 2
@@ -16,39 +25,13 @@ light/dark presentation.
 
    getting-started
    execution-modes
-   managed-dashboard
    configuration
+   managed-dashboard
    results
    deployment
 
 .. toctree::
    :maxdepth: 2
-   :caption: Reference
+   :caption: API reference
 
    api
-
-Project scope
--------------
-
-The package keeps Qiskit as the source of circuits and primitive result types.
-It adds the operational layer needed by PiastQ users:
-
-* resolving the execution mode,
-* submitting managed jobs through a dashboard runner,
-* keeping local PCSS credentials out of managed dashboard submissions,
-* serializing Qiskit circuits as QPY payloads,
-* reconstructing ``qiskit.primitives.SamplerResult`` objects from dashboard
-  JSON,
-* exposing estimated counts for display and analysis.
-
-Current API surface
--------------------
-
-The stable public entry points are:
-
-* ``PiastQClient`` for configuration and backend selection,
-* ``PiastQSampler`` for managed dashboard submissions,
-* ``PiastQJob`` for status, cancellation, result retrieval, and counts,
-* ``DashboardClient`` for direct dashboard HTTP access,
-* helpers for QPY serialization, status normalization, result reconstruction,
-  and secret redaction.

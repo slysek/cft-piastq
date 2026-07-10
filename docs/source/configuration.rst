@@ -1,60 +1,42 @@
 Configuration
 =============
 
-Constructor arguments have priority over environment variables. Empty strings
-are treated as missing values.
-
-Client arguments
-----------------
-
-.. code-block:: python
-
-   client = PiastQClient(
-       mode="auto",
-       owner="szymo",
-       token="local-pcss-token",
-       dashboard_api_url="https://piastq-dashboard.example",
-       dashboard_api_key="dashboard-key",
-       registry_path="jobs.sqlite3",
-       verbose=False,
-       use_backend_noise=False,
-   )
-
-Environment variables
----------------------
+Pass configuration directly to ``PiastQClient`` or set environment variables.
+Constructor arguments take precedence over environment values.
 
 .. list-table::
    :header-rows: 1
 
    * - Variable
-     - Meaning
-   * - ``CFT_PIASTQ_OWNER``
-     - Dashboard job owner. Can also be passed as ``owner=``.
+     - Purpose
    * - ``CFT_PIASTQ_MODE``
-     - ``auto``, ``managed``, ``direct``, or ``fake``. Defaults to ``auto``.
+     - Requested mode: ``auto``, ``managed``, ``direct``, or ``fake``.
+   * - ``CFT_PIASTQ_OWNER``
+     - Owner recorded for managed job submissions.
    * - ``PCSS_TOKEN``
-     - Local PCSS token for ``direct`` mode.
+     - PCSS token for direct execution.
    * - ``PCSS_QAPI_TOKEN``
-     - Alternate local PCSS token variable.
+     - Alternative PCSS token variable.
    * - ``CFT_PIASTQ_DASHBOARD_API_URL``
-     - Base dashboard API URL.
+     - Base URL of the dashboard API.
    * - ``CFT_PIASTQ_DASHBOARD_API_KEY``
-     - Dashboard API key.
-   * - ``CFT_PIASTQ_VERBOSE``
-     - Boolean-like value, for example ``true``, ``false``, ``1``, or ``0``.
+     - API key for protected dashboard operations.
    * - ``CFT_PIASTQ_REGISTRY_PATH``
-     - Local direct-mode job registry path.
+     - Local SQLite registry location for direct jobs.
+   * - ``CFT_PIASTQ_VERBOSE``
+     - Boolean-like value controlling the resolved-mode message.
 
-Boolean values
---------------
+For example, configure a managed process without placing secrets in code:
 
-The configuration parser accepts common environment-style boolean strings:
+.. code-block:: powershell
 
-.. code-block:: python
+   $env:CFT_PIASTQ_MODE = "managed"
+   $env:CFT_PIASTQ_OWNER = "researcher"
+   $env:CFT_PIASTQ_DASHBOARD_API_URL = "https://dashboard.example"
 
-   from cft_piastq.config import parse_bool
+Secrets
+-------
 
-   assert parse_bool("true") is True
-   assert parse_bool("0") is False
-
-Invalid values raise ``PiastQConfigurationError``.
+Do not commit PCSS tokens or dashboard API keys. Read them from environment
+variables or a secret manager. Do not include them in notebooks, screenshots, or
+shared log output.

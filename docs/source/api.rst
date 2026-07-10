@@ -1,104 +1,14 @@
-API Reference
+API reference
 =============
 
-.. raw:: html
+Start with the class that matches the object you are using. Each page keeps the
+generated members next to a short explanation of its role.
 
-   <div class="api-summary">
-     <a href="#cft-piastq-client">Client</a>
-     <a href="#cft-piastq-sampler">Sampler</a>
-     <a href="#cft-piastq-job">Job</a>
-     <a href="#cft-piastq-http">Dashboard HTTP</a>
-     <a href="#cft-piastq-serialization">Serialization</a>
-     <a href="#cft-piastq-results">Results</a>
-   </div>
+.. toctree::
+   :maxdepth: 1
 
-cft_piastq
-----------
-
-.. automodule:: cft_piastq
-   :members:
-   :undoc-members:
-
-cft_piastq.client
------------------
-
-.. automodule:: cft_piastq.client
-   :members:
-   :undoc-members:
-
-cft_piastq.sampler
-------------------
-
-.. automodule:: cft_piastq.sampler
-   :members:
-   :undoc-members:
-
-cft_piastq.job
---------------
-
-.. automodule:: cft_piastq.job
-   :members:
-   :undoc-members:
-
-cft_piastq.options
-------------------
-
-.. automodule:: cft_piastq.options
-   :members:
-   :undoc-members:
-
-cft_piastq.backend
-------------------
-
-.. automodule:: cft_piastq.backend
-   :members:
-   :undoc-members:
-
-cft_piastq.http
----------------
-
-.. automodule:: cft_piastq.http
-   :members:
-   :undoc-members:
-
-cft_piastq.serialization
-------------------------
-
-.. automodule:: cft_piastq.serialization
-   :members:
-   :undoc-members:
-
-cft_piastq.results
-------------------
-
-.. automodule:: cft_piastq.results
-   :members:
-   :undoc-members:
-
-cft_piastq.counts
------------------
-
-.. automodule:: cft_piastq.counts
-   :members:
-   :undoc-members:
-
-cft_piastq.status
------------------
-
-.. automodule:: cft_piastq.status
-   :members:
-   :undoc-members:
-
-cft_piastq.errors
------------------
-
-.. automodule:: cft_piastq.errors
-   :members:
-   :undoc-members:
-
-cft_piastq.security
--------------------
-
-.. automodule:: cft_piastq.security
-   :members:
-   :undoc-members:
+   api-client
+   api-sampler
+   api-job
+   api-options
+   api-modules

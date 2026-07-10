@@ -1,84 +1,53 @@
-Managed Dashboard
-=================
+Managed dashboard jobs
+======================
 
-Managed execution uses the dashboard runner API. The local package is
-responsible for Qiskit-facing ergonomics, circuit serialization, status
-normalization, result reconstruction, and secret-safe error handling.
-
-Dashboard client
-----------------
-
-The lower-level HTTP wrapper is ``DashboardClient``:
+Managed mode submits a Qiskit circuit to the PiastQ dashboard runner. It needs
+an owner and a dashboard URL. The dashboard API key is optional for submission,
+but protected operations such as cancellation may require it.
 
 .. code-block:: python
 
-   from cft_piastq.http import DashboardClient
+   import os
 
-   dashboard = DashboardClient(
-       "https://piastq-dashboard.example",
-       api_key="dashboard-key",
+   from qiskit import QuantumCircuit
+
+   from cft_piastq import PiastQClient, PiastQSampler
+
+   circuit = QuantumCircuit(2, 2, name="bell")
+   circuit.h(0)
+   circuit.cx(0, 1)
+   circuit.measure([0, 1], [0, 1])
+
+   client = PiastQClient(
+       mode="managed",
+       owner=os.environ["CFT_PIASTQ_OWNER"],
+       dashboard_api_url=os.environ["CFT_PIASTQ_DASHBOARD_API_URL"],
+       dashboard_api_key=os.environ.get("CFT_PIASTQ_DASHBOARD_API_KEY"),
    )
+   sampler = PiastQSampler(
+       client.backend,
+       options={"cft_job_name": "Bell test"},
+   )
+   job = sampler.run(circuit, shots=1024)
 
-   health = dashboard.health()
-   job = dashboard.submit_job({"shots": 200})
-   fresh_status = dashboard.get_job(job["id"])
-   result = dashboard.get_result(job["id"])
-   dashboard.cancel_job(job["id"])
-   dashboard.close()
+   result = job.result(timeout=120)
+   counts = job.counts()
 
-Endpoints
----------
+The payload contains QPY circuit data and job metadata. It never contains a
+local PCSS token.
 
-.. list-table::
-   :header-rows: 1
+Working with a job
+------------------
 
-   * - Method
-     - Path
-     - Python method
-   * - ``GET``
-     - ``/api/runner/health``
-     - ``health()``
-   * - ``POST``
-     - ``/api/runner/jobs``
-     - ``submit_job(payload)``
-   * - ``GET``
-     - ``/api/runner/jobs/{id}``
-     - ``get_job(server_job_id)``
-   * - ``GET``
-     - ``/api/runner/jobs/{id}/result``
-     - ``get_result(server_job_id)``
-   * - ``POST``
-     - ``/api/runner/jobs/{id}/cancel``
-     - ``cancel_job(server_job_id)``
-   * - ``GET``
-     - ``/api/noise-model/latest``
-     - ``get_noise_model()``
-
-Job lifecycle
--------------
-
-``PiastQSampler.run()`` submits circuits and returns ``PiastQJob``. A job can
-read status, request cancellation, wait for a result, and derive estimated
-counts:
+``PiastQJob`` exposes a small, consistent interface:
 
 .. code-block:: python
-
-   job = sampler.run(circuits=[circuit], shots=200)
 
    job_id = job.job_id()
    status = job.status()
-   result = job.result(timeout=120, poll_interval=2)
-   counts = job.counts(num_bits=2)
+   result = job.result(timeout=120)
+   estimated_counts = job.counts()
+   cancellation_status = job.cancel()
 
-``result()`` polls until the normalized status is ``succeeded``. ``failed``,
-``cancelled``, and ``stale`` are terminal failure statuses.
-
-Security boundary
------------------
-
-Managed submissions must not send local PCSS tokens to the dashboard. Dashboard
-operations use ``CFT_PIASTQ_DASHBOARD_API_KEY`` or the explicit
-``dashboard_api_key`` constructor argument when authentication is required.
-
-HTTP errors and public exception messages are passed through secret redaction so
-that logs remain useful without exposing credentials.
+Use a positive ``poll_interval`` when waiting for a managed result. A failed or
+cancelled managed job raises a public PiastQ exception when its result is read.
