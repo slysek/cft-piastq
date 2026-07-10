@@ -108,7 +108,7 @@ class PiastQClient:
             dashboard_client.health()
             return "managed", ManagedPiastQBackend(
                 mode="managed",
-                owner=self,
+                owner=self._owner,
                 dashboard_client=dashboard_client,
             )
 
@@ -135,7 +135,7 @@ class PiastQClient:
             else:
                 return "managed", ManagedPiastQBackend(
                     mode="managed",
-                    owner=self,
+                    owner=self._owner,
                     dashboard_client=dashboard_client,
                 )
 
@@ -152,24 +152,38 @@ class PiastQClient:
     def _direct_backend(self) -> DirectPiastQBackend:
         if not self._token:
             raise DirectModeUnavailableError("Direct mode requires a PCSS token.")
+        dashboard_client = (
+            self._dashboard_client_or_create() if self._dashboard_api_url else None
+        )
         return DirectPiastQBackend(
             mode="direct",
-            owner=self,
+            owner=self._owner,
             token=self._token,
             registry_path=self._registry_path,
+            dashboard_client=dashboard_client,
         )
 
+    def fake_backend(self, use_backend_noise: bool | str = False) -> FakePiastQBackend:
+        """Return a local fake backend without changing the resolved client mode."""
+
+        return self._fake_backend_for(parse_bool(use_backend_noise, default=False))
+
     def _fake_backend(self) -> FakePiastQBackend:
+        return self._fake_backend_for(self._use_backend_noise)
+
+    def _fake_backend_for(self, use_backend_noise: bool) -> FakePiastQBackend:
         dashboard_client: DashboardClient | None = None
         noise_model = None
-        if self._use_backend_noise:
+        if use_backend_noise:
+            from .fake import noise_model_from_payload
+
             dashboard_client = self._require_dashboard_client()
-            noise_model = dashboard_client.get_noise_model()
+            noise_model = noise_model_from_payload(dashboard_client.get_noise_model())
 
         return FakePiastQBackend(
             mode="fake",
-            owner=self,
-            use_backend_noise=self._use_backend_noise,
+            owner=self._owner,
+            use_backend_noise=use_backend_noise,
             dashboard_client=dashboard_client,
             noise_model=noise_model,
         )
