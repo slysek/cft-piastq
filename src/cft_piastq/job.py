@@ -61,7 +61,7 @@ class ManagedJobHandle:
 
     dashboard_client: Any
     server_job_id: str
-    shots: int
+    shots: int | None
     num_bits: int | None = None
     _result: Any | None = field(default=None, init=False, repr=False)
 
@@ -130,10 +130,16 @@ class ManagedJobHandle:
                 time.sleep(sleep_for)
 
     def counts(self, *, num_bits: int | None = None) -> list[dict[str, int]]:
+        result = self.result()
+        shots = self.shots if self.shots is not None else _shots_from_result(result)
+        if shots is None:
+            raise ManagedJobError(
+                f"Managed job {self.server_job_id} result does not include shots."
+            )
         bit_count = self.num_bits if num_bits is None else num_bits
         return estimated_counts_from_result(
-            self.result(),
-            shots=self.shots,
+            result,
+            shots=shots,
             num_bits=bit_count,
         )
 

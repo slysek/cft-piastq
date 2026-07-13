@@ -16,6 +16,7 @@ from .errors import (
     PiastQConfigurationError,
 )
 from .http import DashboardClient
+from .job import ManagedJobHandle, PiastQJob
 from .types import ExecutionMode, ResolvedExecutionMode
 
 _EXECUTION_MODES = frozenset({"auto", "managed", "direct", "fake"})
@@ -96,6 +97,21 @@ class PiastQClient:
         """Return the configured dashboard owner."""
 
         return self._owner
+
+    def retrieve_job(self, job_id: str) -> PiastQJob:
+        """Reconnect to an existing managed dashboard job by identifier."""
+
+        backend = cast(ManagedPiastQBackend, self._backend)
+        payload = backend.dashboard_client.get_job(job_id)
+        raw_shots = payload.get("shots")
+        shots = int(raw_shots) if raw_shots is not None else None
+        return PiastQJob(
+            ManagedJobHandle(
+                dashboard_client=backend.dashboard_client,
+                server_job_id=job_id,
+                shots=shots,
+            )
+        )
 
     def _resolve_backend(
         self,
