@@ -105,6 +105,41 @@ def test_retrieved_job_can_be_cancelled() -> None:
     ]
 
 
+def test_retrieve_completed_job_without_status_shots_returns_result() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/runner/health":
+            return httpx.Response(200, json={"status": "ok"})
+        if request.url.path == "/api/runner/jobs/completed-job":
+            return httpx.Response(
+                200,
+                json={"server_job_id": "completed-job", "status": "succeeded"},
+            )
+        if request.url.path == "/api/runner/jobs/completed-job/result":
+            return httpx.Response(
+                200,
+                json={
+                    "server_job_id": "completed-job",
+                    "status": "succeeded",
+                    "shots": 50,
+                    "quasi_dists": [{"1": 1.0}],
+                    "metadata": [{}],
+                },
+            )
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    client = PiastQClient(
+        mode="managed",
+        dashboard_api_url=BASE_URL,
+        http_transport=httpx.MockTransport(handler),
+        verbose=False,
+    )
+
+    job = client.retrieve_job("completed-job")
+    result = job.result(timeout=1.0, poll_interval=0.001)
+
+    assert dict(result.quasi_dists[0]) == {1: 1.0}
+
+
 @pytest.mark.parametrize("job_id", ["", "   ", None, 123])
 def test_retrieve_job_rejects_invalid_ids_before_job_request(job_id: object) -> None:
     requests: list[httpx.Request] = []

@@ -49,3 +49,28 @@ Working with a job
 
 Use a positive ``poll_interval`` when waiting for a managed result. A failed or
 cancelled managed job raises a public PiastQ exception when its result is read.
+
+Reconnect by job ID
+-------------------
+
+Use ``retrieve_job()`` when the job was submitted in an earlier process or
+notebook session. Retrieval immediately verifies that the managed job exists
+and is accessible.
+
+.. code-block:: python
+
+   client = PiastQClient(
+       mode="managed",
+       dashboard_api_url="https://dashboard.example",
+       dashboard_api_key="YOUR_DASHBOARD_API_KEY",
+   )
+   job = client.retrieve_job("YOUR_MANAGED_JOB_ID")
+
+   status = job.status()
+   result = job.result(timeout=120)
+
+   # Protected cancellation requires the dashboard API key.
+   cancellation_status = job.cancel()
+
+Only managed dashboard jobs can be retrieved by identifier. Direct PCSS and
+local fake jobs cannot be reconstructed with ``retrieve_job()``.

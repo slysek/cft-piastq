@@ -112,7 +112,9 @@ class PiastQClient:
         payload = self._backend.dashboard_client.get_job(normalized_job_id)
         raw_shots = payload.get("shots")
         shots: int | None = None
-        if raw_shots is not None:
+        if isinstance(raw_shots, (str, int, float)) and not isinstance(
+            raw_shots, bool
+        ):
             try:
                 parsed_shots = int(raw_shots)
             except (TypeError, ValueError):
