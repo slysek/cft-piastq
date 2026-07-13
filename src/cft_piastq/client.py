@@ -101,14 +101,29 @@ class PiastQClient:
     def retrieve_job(self, job_id: str) -> PiastQJob:
         """Reconnect to an existing managed dashboard job by identifier."""
 
-        backend = cast(ManagedPiastQBackend, self._backend)
-        payload = backend.dashboard_client.get_job(job_id)
+        if not isinstance(job_id, str) or not job_id.strip():
+            raise PiastQConfigurationError("job_id must be a non-empty string.")
+        if not isinstance(self._backend, ManagedPiastQBackend):
+            raise PiastQConfigurationError(
+                "retrieve_job() is available only in managed execution mode."
+            )
+
+        normalized_job_id = job_id.strip()
+        payload = self._backend.dashboard_client.get_job(normalized_job_id)
         raw_shots = payload.get("shots")
-        shots = int(raw_shots) if raw_shots is not None else None
+        shots: int | None = None
+        if raw_shots is not None:
+            try:
+                parsed_shots = int(raw_shots)
+            except (TypeError, ValueError):
+                parsed_shots = 0
+            if parsed_shots > 0:
+                shots = parsed_shots
+
         return PiastQJob(
             ManagedJobHandle(
-                dashboard_client=backend.dashboard_client,
-                server_job_id=job_id,
+                dashboard_client=self._backend.dashboard_client,
+                server_job_id=normalized_job_id,
                 shots=shots,
             )
         )
