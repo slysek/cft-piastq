@@ -33,7 +33,7 @@ html_title = "cft-piastq"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_theme_options = {
-    "source_repository": "https://github.com/cft-piastq/cft-piastq/",
+    "source_repository": "https://github.com/slysek/cft-piastq/",
     "source_branch": "main",
     "source_directory": "docs/source/",
     "sidebar_hide_name": False,

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import importlib
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from .direct_composite import DirectCompositeJob
 from .errors import DirectModeUnavailableError, DirectProviderError
 from .security import safe_error_message
 
@@ -45,24 +47,42 @@ class DirectPcssAdapter:
         shots: int | None = None,
         provider_options: Mapping[str, Any] | None = None,
     ) -> Any:
-        """Submit circuits through the lazily-created AQTSampler."""
+        """Create one lazy logical job backed by partitioned AQT jobs."""
+
+        if shots is None:
+            raise DirectProviderError("Direct shots must be a positive integer.")
+
+        try:
+            options = dict(provider_options or {})
+        except Exception:
+            raise DirectProviderError(
+                "Unable to snapshot direct job inputs."
+            ) from None
+        show_progress = options.pop("with_progress_bar", True)
+        if not isinstance(show_progress, bool):
+            raise DirectProviderError(
+                "Direct provider option with_progress_bar must be a boolean."
+            )
+
+        try:
+            circuit_snapshot, parameter_snapshot, option_snapshot = deepcopy(
+                (list(circuits), parameter_values, options)
+            )
+        except Exception:
+            raise DirectProviderError(
+                "Unable to snapshot direct job inputs."
+            ) from None
 
         sampler = self._sampler_or_create()
-        options = dict(provider_options or {})
-        try:
-            if parameter_values is None:
-                return sampler.run(circuits, shots=shots, **options)
-            return sampler.run(
-                circuits,
-                parameter_values=parameter_values,
-                shots=shots,
-                **options,
-            )
-        except Exception as exc:  # pragma: no cover - provider-specific failures
-            raise DirectProviderError(
-                "Unable to submit direct provider job: "
-                f"{self._safe_provider_error(exc)}"
-            ) from exc
+        return DirectCompositeJob(
+            sampler=sampler,
+            circuits=circuit_snapshot,
+            parameter_values=parameter_snapshot,
+            total_shots=shots,
+            provider_options=option_snapshot,
+            show_progress=show_progress,
+            error_formatter=self._safe_provider_error,
+        )
 
     @property
     def registry(self) -> Any | None:
@@ -104,7 +124,7 @@ class DirectPcssAdapter:
                 raise DirectProviderError(
                     "Unable to create PCSS direct access backend: "
                     f"{self._safe_provider_error(exc)}"
-                ) from exc
+                ) from None
 
         if self._sampler is None:
             try:
@@ -112,7 +132,7 @@ class DirectPcssAdapter:
             except Exception as exc:  # pragma: no cover - provider-specific
                 raise DirectProviderError(
                     f"Unable to create AQT sampler: {self._safe_provider_error(exc)}"
-                ) from exc
+                ) from None
 
         return self._sampler
 
@@ -127,7 +147,7 @@ class DirectPcssAdapter:
             raise DirectProviderError(
                 "Unable to authenticate PCSS direct mode: "
                 f"{self._safe_provider_error(exc)}"
-            ) from exc
+            ) from None
         self._logged_in = True
 
     def _safe_provider_error(self, exc: BaseException) -> str:

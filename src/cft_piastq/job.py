@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import threading
 import time
+from _thread import LockType
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from .counts import estimated_counts_from_result
 from .errors import (
@@ -21,6 +24,8 @@ from .status import normalize_job_status
 from .types import JobStatus
 
 _TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled", "stale"})
+_STABLE_TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
+_DIRECT_LOGICAL_TIMEOUT_MESSAGE = "Timed out waiting for direct job to finish."
 
 
 class _JobHandle(Protocol):
@@ -164,6 +169,24 @@ class DirectJobHandle:
     event_reporter: Any | None = None
     _cancel_requested: bool = field(default=False, init=False, repr=False)
     _result: Any | None = field(default=None, init=False, repr=False)
+    _result_initialized: bool = field(default=False, init=False, repr=False)
+    _success_recorded: bool = field(default=False, init=False, repr=False)
+    _failure_recorded: bool = field(default=False, init=False, repr=False)
+    _recorded_status: JobStatus | None = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
+    _result_lock: LockType = field(
+        default_factory=threading.Lock,
+        init=False,
+        repr=False,
+    )
+    _bookkeeping_lock: LockType = field(
+        default_factory=threading.Lock,
+        init=False,
+        repr=False,
+    )
 
     def job_id(self) -> str:
         job_id_method = getattr(self.provider_job, "job_id", None)
@@ -178,37 +201,47 @@ class DirectJobHandle:
         return self.local_job_id or "direct-job"
 
     def status(self) -> JobStatus:
-        if self._cancel_requested:
-            self._record_status("cancel_requested", cancel_requested=True)
-            return "cancel_requested"
-
         status_method = getattr(self.provider_job, "status", None)
-        if callable(status_method):
-            status = normalize_job_status(_provider_status_value(status_method()))
-        else:
+        try:
+            raw_status = status_method() if callable(status_method) else None
+            status = normalize_job_status(_provider_status_value(raw_status))
+        except Exception:
             status = "unknown"
-        self._record_status(status)
-        return status
+
+        return self._record_status(status)
 
     def cancel(self) -> JobStatus:
+        self._mark_cancel_requested()
+        self._record_cancel_status_best_effort("cancel_requested")
         cancel_method = getattr(self.provider_job, "cancel", None)
         if not callable(cancel_method):
-            self._cancel_requested = True
-            self._record_status("cancel_requested", cancel_requested=True)
             return "cancel_requested"
 
         try:
             raw_status = cancel_method()
+        except PiastQError as exc:
+            with suppress(BaseException):
+                self._record_terminal_failure(
+                    exc,
+                    fallback_status="cancel_requested",
+                    event_type="cancel_failed",
+                )
+            raise
         except Exception as exc:  # pragma: no cover - provider-specific failures
-            raise DirectProviderError(
+            public_error = DirectProviderError(
                 f"Unable to cancel direct provider job: {safe_error_message(exc)}"
-            ) from exc
+            )
+            self._record_terminal_failure(
+                public_error,
+                fallback_status="cancel_requested",
+                event_type="cancel_failed",
+            )
+            raise public_error from None
 
         status = normalize_job_status(_provider_status_value(raw_status))
-        if status == "unknown":
-            status = self.status()
-        else:
-            self._record_status(status)
+        if status not in _TERMINAL_STATUSES and status != "cancel_requested":
+            status = "cancel_requested"
+        self._record_cancel_status_best_effort(status)
         return status
 
     def result(
@@ -218,27 +251,73 @@ class DirectJobHandle:
         poll_interval: float = 5.0,
     ) -> Any:
         del poll_interval
-        if self._result is not None:
+        deadline = (
+            None if timeout is None else time.monotonic() + max(0.0, timeout)
+        )
+        if self._result_initialized:
             return self._result
 
-        result_method = getattr(self.provider_job, "result", None)
-        if not callable(result_method):
-            raise DirectProviderError("Direct provider job does not expose result().")
-
+        self._acquire_result_lock(deadline)
         try:
-            if timeout is None:
-                self._result = result_method()
-            else:
-                self._result = result_method(timeout=timeout)
-        except Exception as exc:  # pragma: no cover - provider-specific failures
-            raise DirectProviderError(
-                f"Unable to read direct provider result: {safe_error_message(exc)}"
-            ) from exc
-        self._record_status("succeeded")
-        self._record_event("result_ready", {"status": "succeeded"})
-        return self._result
+            if self._result_initialized:
+                return self._result
+
+            result_method = getattr(self.provider_job, "result", None)
+            if not callable(result_method):
+                raise DirectProviderError(
+                    "Direct provider job does not expose result()."
+                )
+
+            remaining = self._remaining_result_time(deadline)
+            try:
+                if remaining is None:
+                    self._result = result_method()
+                else:
+                    self._result = result_method(timeout=remaining)
+                self._result_initialized = True
+            except PiastQError as exc:
+                with suppress(BaseException):
+                    self._record_terminal_failure(
+                        exc,
+                        fallback_status="failed",
+                        event_type="result_failed",
+                    )
+                raise
+            except Exception as exc:  # pragma: no cover - provider-specific failures
+                public_error = DirectProviderError(
+                    "Unable to read direct provider result: "
+                    f"{safe_error_message(exc)}"
+                )
+                with suppress(BaseException):
+                    self._record_terminal_failure(
+                        public_error,
+                        fallback_status="failed",
+                        event_type="result_failed",
+                    )
+                raise public_error from None
+            self._record_success_once()
+            return self._result
+        finally:
+            self._result_lock.release()
 
     def counts(self, *, num_bits: int | None = None) -> list[dict[str, int]]:
+        bit_count = self.num_bits if num_bits is None else num_bits
+        counts_method = getattr(self.provider_job, "counts", None)
+        if callable(counts_method):
+            self.result()
+            try:
+                return cast(
+                    list[dict[str, int]],
+                    counts_method(num_bits=bit_count),
+                )
+            except PiastQError:
+                raise
+            except Exception as exc:
+                raise DirectProviderError(
+                    "Unable to read direct provider counts: "
+                    f"{safe_error_message(exc)}"
+                ) from None
+
         result = self.result()
         shots = self.shots if self.shots is not None else _shots_from_result(result)
         if shots is None:
@@ -246,7 +325,7 @@ class DirectJobHandle:
         return estimated_counts_from_result(
             result,
             shots=shots,
-            num_bits=self.num_bits if num_bits is None else num_bits,
+            num_bits=bit_count,
         )
 
     def _record_status(
@@ -254,18 +333,144 @@ class DirectJobHandle:
         status: JobStatus,
         *,
         cancel_requested: bool | None = None,
-    ) -> None:
-        if self.registry is not None and self.local_job_id is not None:
-            self.registry.update_status(
-                self.local_job_id,
+    ) -> JobStatus:
+        with self._bookkeeping_lock:
+            resolved_status, _ = self._write_status_locked(
                 status,
                 cancel_requested=cancel_requested,
+                write_when_unchanged=True,
+                emit_when_unchanged=True,
             )
-        self._record_event("status_update", {"status": status})
+            return resolved_status
+
+    def _mark_cancel_requested(self) -> None:
+        with self._bookkeeping_lock:
+            self._cancel_requested = True
+
+    def _cancel_requested_snapshot(self) -> bool:
+        with self._bookkeeping_lock:
+            return self._cancel_requested
+
+    def _record_cancel_status_best_effort(self, status: JobStatus) -> None:
+        with self._bookkeeping_lock:
+            self._write_status_locked(status, cancel_requested=True)
+
+    def _write_status_locked(
+        self,
+        candidate: JobStatus,
+        *,
+        error: str | None = None,
+        cancel_requested: bool | None = None,
+        write_when_unchanged: bool = False,
+        emit_when_unchanged: bool = False,
+    ) -> tuple[JobStatus, bool]:
+        status = self._resolve_status_locked(candidate)
+        changed = status != self._recorded_status
+        self._recorded_status = status
+        cancellation_flag = (
+            self._cancel_requested
+            or cancel_requested is True
+            or status in {"cancel_requested", "cancelled"}
+        )
+
+        if (
+            changed or write_when_unchanged or error is not None
+        ) and self.registry is not None and self.local_job_id is not None:
+            with suppress(BaseException):
+                self.registry.update_status(
+                    self.local_job_id,
+                    status,
+                    error=error,
+                    cancel_requested=cancellation_flag,
+                )
+        if changed or emit_when_unchanged:
+            payload: dict[str, object] = {"status": status}
+            if error is not None:
+                payload["error"] = error
+            with suppress(BaseException):
+                self._record_event("status_update", payload)
+        return status, changed
+
+    def _resolve_status_locked(self, candidate: JobStatus) -> JobStatus:
+        current = self._recorded_status
+        if current in _STABLE_TERMINAL_STATUSES:
+            return current
+        if current == "stale":
+            if candidate in _STABLE_TERMINAL_STATUSES:
+                return candidate
+            return current
+        if current == "cancel_requested" and candidate not in _TERMINAL_STATUSES:
+            return current
+        if self._cancel_requested and candidate not in _TERMINAL_STATUSES:
+            return "cancel_requested"
+        return candidate
+
+    def _acquire_result_lock(self, deadline: float | None) -> None:
+        if deadline is None:
+            self._result_lock.acquire()
+            return
+        if self._result_lock.acquire(blocking=False):
+            return
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not self._result_lock.acquire(timeout=remaining):
+            raise PiastQTimeoutError(_DIRECT_LOGICAL_TIMEOUT_MESSAGE)
+
+    def _remaining_result_time(self, deadline: float | None) -> float | None:
+        if deadline is None:
+            return None
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise PiastQTimeoutError(_DIRECT_LOGICAL_TIMEOUT_MESSAGE)
+        return remaining
 
     def _record_event(self, event_type: str, payload: Mapping[str, object]) -> None:
         if self.event_reporter is not None and self.local_job_id is not None:
             self.event_reporter.report(self.local_job_id, event_type, payload)
+
+    def _record_terminal_failure(
+        self,
+        error: PiastQError,
+        *,
+        fallback_status: JobStatus,
+        event_type: str,
+    ) -> None:
+        status = self._safe_terminal_status(fallback_status)
+        detail = safe_error_message(error)
+        with self._bookkeeping_lock:
+            if self._success_recorded or self._failure_recorded:
+                return
+            self._failure_recorded = True
+            resolved_status, _ = self._write_status_locked(
+                status,
+                error=detail,
+            )
+            payload = {"status": resolved_status, "error": detail}
+            with suppress(BaseException):
+                self._record_event(event_type, payload)
+
+    def _record_success_once(self) -> None:
+        with self._bookkeeping_lock:
+            if self._success_recorded or self._failure_recorded:
+                return
+            self._success_recorded = True
+            status, _ = self._write_status_locked("succeeded")
+            with suppress(BaseException):
+                self._record_event("result_ready", {"status": status})
+
+    def _safe_terminal_status(self, fallback_status: JobStatus) -> JobStatus:
+        try:
+            status_method = getattr(self.provider_job, "status", None)
+            raw_status = status_method() if callable(status_method) else None
+            status = normalize_job_status(_provider_status_value(raw_status))
+        except BaseException:
+            status = "unknown"
+
+        if status in _TERMINAL_STATUSES or status == "cancel_requested":
+            return status
+        if self._cancel_requested_snapshot():
+            return "cancel_requested"
+        return fallback_status
 
 
 @dataclass
@@ -338,7 +543,10 @@ class PiastQJob:
         return self._handle.result(timeout=timeout, poll_interval=poll_interval)
 
     def counts(self, num_bits: int | None = None) -> list[dict[str, int]]:
-        """Return estimated counts derived from the sampler result."""
+        """Return exact combined integer counts for direct jobs.
+
+        Managed and fake jobs may be estimated from quasi-distributions.
+        """
 
         return self._handle.counts(num_bits=num_bits)
 

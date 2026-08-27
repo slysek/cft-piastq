@@ -12,8 +12,8 @@
 
 ## Source Inputs
 
-- Approved design: `2026-06-26-cft-piastq-library-design.md`
-- Dashboard counterpart plan: `2026-06-26-piastq-benchmark-managed-runner-jobs.md`
+- Approved design: `docs/design/2026-06-26-cft-piastq-library-design.md`
+- Dashboard counterpart plan: `docs/design/2026-06-26-piastq-benchmark-managed-runner-jobs.md`
 - Current workspace state: this folder currently contains planning files only and is not a Git repository.
 
 ## Skill Review and Assignment
@@ -223,7 +223,7 @@ Run this once before Wave 0 if the folder is still not a Git repository:
 
 ```powershell
 git init
-git add 2026-06-26-cft-piastq-library-design.md 2026-06-26-piastq-benchmark-managed-runner-jobs.md docs/superpowers/plans/2026-06-26-cft-piastq-library.md
+git add docs/design/2026-06-26-cft-piastq-library-design.md docs/design/2026-06-26-piastq-benchmark-managed-runner-jobs.md docs/superpowers/plans/2026-06-26-cft-piastq-library.md
 git commit -m "docs: add cft-piastq implementation plan"
 ```
 

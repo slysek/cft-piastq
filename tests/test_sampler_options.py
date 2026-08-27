@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from qiskit import QuantumCircuit
 
 import cft_piastq.client as client_module
-from cft_piastq.backend import ManagedPiastQBackend
+from cft_piastq.backend import (
+    DirectPiastQBackend,
+    FakePiastQBackend,
+    ManagedPiastQBackend,
+)
+from cft_piastq.errors import PiastQConfigurationError
 from cft_piastq.options import PiastQSamplerOptions, split_cft_options
 from cft_piastq.sampler import PiastQSampler
 from cft_piastq.serialization import qpy_base64_to_circuits
@@ -30,6 +36,68 @@ def bell_circuit() -> QuantumCircuit:
     circuit.cx(0, 1)
     circuit.measure([0, 1], [0, 1])
     return circuit
+
+
+def sampler_for_mode(mode: str) -> PiastQSampler:
+    if mode == "managed":
+        return PiastQSampler(
+            ManagedPiastQBackend(
+                mode="managed",
+                owner="szymo",
+                dashboard_client=RecordingDashboardClient(),  # type: ignore[arg-type]
+            )
+        )
+    if mode == "direct":
+        return PiastQSampler(
+            DirectPiastQBackend(
+                mode="direct",
+                owner="szymo",
+                token="-".join(("token", "placeholder")),
+                registry_path=Path("unused.sqlite3"),
+            )
+        )
+    return PiastQSampler(FakePiastQBackend(mode="fake", owner="szymo"))
+
+
+class IndexableShots:
+    def __index__(self) -> int:
+        return 200
+
+
+@pytest.mark.parametrize("mode", ["managed", "direct", "fake"])
+@pytest.mark.parametrize(
+    "invalid_shots",
+    [True, False, 2000.9, "2000", 2000.0],
+)
+def test_sampler_rejects_non_integer_shots_in_every_mode(
+    mode: str,
+    invalid_shots: object,
+) -> None:
+    sampler = sampler_for_mode(mode)
+
+    with pytest.raises(
+        PiastQConfigurationError,
+        match="shots must be a positive integer",
+    ):
+        sampler.run(
+            circuits=[bell_circuit()],
+            shots=invalid_shots,  # type: ignore[arg-type]
+        )
+
+
+def test_managed_sampler_accepts_indexable_integer_shots() -> None:
+    sampler = sampler_for_mode("managed")
+
+    sampler.run(
+        circuits=[bell_circuit()],
+        shots=IndexableShots(),
+    )
+
+    backend = sampler.backend
+    assert isinstance(backend, ManagedPiastQBackend)
+    dashboard_client = backend.dashboard_client
+    assert isinstance(dashboard_client, RecordingDashboardClient)
+    assert dashboard_client.submitted_payloads[0]["shots"] == 200
 
 
 def test_sampler_options_support_attribute_and_dict_style_access() -> None:

@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import operator
 from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from typing import Any, SupportsIndex, cast
 
 from qiskit import QuantumCircuit  # type: ignore[import-untyped]
 
 from ._version import __version__
 from .backend import DirectPiastQBackend, FakePiastQBackend, ManagedPiastQBackend
-from .errors import ManagedJobError, PiastQError
+from .errors import ManagedJobError, PiastQConfigurationError, PiastQError
 from .job import DirectJobHandle, FakeJobHandle, ManagedJobHandle, PiastQJob
 from .options import PiastQSamplerOptions, split_cft_options
 from .serialization import circuit_to_qpy_base64
@@ -36,7 +37,7 @@ class PiastQSampler:
         self,
         circuits: QuantumCircuit | Sequence[QuantumCircuit],
         parameter_values: object | None = None,
-        shots: int | None = None,
+        shots: SupportsIndex | None = None,
         **run_options: Any,
     ) -> PiastQJob:
         """Submit circuits for execution and return a PiastQ job facade."""
@@ -150,6 +151,12 @@ class PiastQSampler:
             shots=shots,
             provider_options=provider_options,
         )
+        part_shots = tuple(getattr(provider_job, "part_shots", (shots,)))
+        logical_metadata = {
+            "completed_parts": 0,
+            "total_parts": len(part_shots),
+            "total_shots": shots,
+        }
         provider_job_id = _provider_job_id(provider_job)
         registry = adapter.registry
         event_reporter = adapter.event_reporter
@@ -165,6 +172,7 @@ class PiastQSampler:
                 status=status,
                 shots=shots,
                 circuit_count=len(circuits),
+                metadata=logical_metadata,
             )
 
         if event_reporter is not None:
@@ -176,6 +184,7 @@ class PiastQSampler:
                     "status": status,
                     "shots": shots,
                     "circuit_count": len(circuits),
+                    "total_parts": len(part_shots),
                 },
             )
 
@@ -237,17 +246,24 @@ def _normalize_circuits(
     return circuit_list
 
 
-def _resolve_shots(shots: int | None, provider_options: dict[str, Any]) -> int:
+def _resolve_shots(
+    shots: SupportsIndex | None,
+    provider_options: dict[str, Any],
+) -> int:
     raw_shots = (
         shots if shots is not None else provider_options.pop("shots", DEFAULT_SHOTS)
     )
     provider_options.pop("shots", None)
+    if isinstance(raw_shots, bool):
+        raise PiastQConfigurationError("shots must be a positive integer.")
     try:
-        resolved_shots = int(raw_shots)
-    except (TypeError, ValueError) as exc:
-        raise PiastQError("shots must be a positive integer.") from exc
+        resolved_shots = operator.index(raw_shots)
+    except TypeError:
+        raise PiastQConfigurationError(
+            "shots must be a positive integer."
+        ) from None
     if resolved_shots <= 0:
-        raise PiastQError("shots must be a positive integer.")
+        raise PiastQConfigurationError("shots must be a positive integer.")
     return resolved_shots
 
 
@@ -309,7 +325,7 @@ def _provider_status(provider_job: object) -> object:
 def _required_owner_text(owner: object) -> str:
     owner_text = _optional_text(owner)
     if owner_text is None:
-        raise PiastQError(
+        raise PiastQConfigurationError(
             "Managed dashboard jobs require an owner. "
             "Pass owner='your-name' to PiastQClient or set CFT_PIASTQ_OWNER."
         )

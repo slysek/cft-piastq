@@ -1,23 +1,19 @@
 cft-piastq
 ==========
 
-``cft-piastq`` is a Qiskit-compatible client for PiastQ execution. Use it to
-submit a circuit through a managed dashboard, run it directly with PCSS/AQT, or
-simulate it locally with Qiskit Aer.
+``cft-piastq`` is a Qiskit-compatible client for managed PiastQ execution,
+direct PCSS/AQT access, and local Aer simulation. The package is imported as
+``cft_piastq``.
 
-Install the package from PyPI:
-
-.. code-block:: powershell
-
-   python -m pip install cft-piastq
-
-For a local smoke test, install the fake-execution extra:
+Clone the repository and install an execution extra with Python 3.11 or 3.12:
 
 .. code-block:: powershell
 
-   python -m pip install "cft-piastq[fake]"
+   git clone https://github.com/slysek/cft-piastq.git
+   cd cft-piastq
+   python -m pip install -e ".[direct]"
 
-The package is imported as ``cft_piastq``.
+Use ``.[fake]`` for local simulation or ``.[dev]`` for development tools.
 
 .. toctree::
    :maxdepth: 2

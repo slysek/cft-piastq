@@ -8,3 +8,14 @@ __pycache__/
 build/
 dist/
 docs/_build/
+.env
+.env.*
+!.env.example
+.ipynb_checkpoints/
+.coverage
+coverage.xml
+htmlcov/
+.venv-*/
+.history-tools/
+.history-backup/
+.history-verification/

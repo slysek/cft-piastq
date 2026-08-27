@@ -168,7 +168,7 @@ def test_managed_job_reads_fresh_status_result_counts_and_cancel() -> None:
     job = PiastQSampler(client.backend).run(circuits=[bell_circuit()], shots=200)
 
     assert job.status() == "queued"
-    result = job.result(timeout=1, poll_interval=0)
+    result = job.result(timeout=1, poll_interval=0.001)
 
     assert isinstance(result, SamplerResult)
     assert result.metadata[0]["shots"] == 200
