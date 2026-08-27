@@ -524,35 +524,23 @@ def test_sensitive_and_generated_artifacts_are_ignored() -> None:
         ".history-tools/",
         ".history-backup/",
         ".history-verification/",
+        "docs/source/generated/",
+        "docs/design/",
+        "docs/superpowers/",
     )
     for required_line in required_lines:
         assert ignored_lines.count(required_line) == 1
 
 
-def test_design_documents_are_kept_under_docs_design_without_content_changes() -> None:
-    expected_digests = {
-        "2026-06-26-cft-piastq-library-design.md": (
-            "62119eae4451a5138437e36042d355118c1c6195b388643c31d586bada859777"
-        ),
-        "2026-06-26-piastq-benchmark-managed-runner-jobs.md": (
-            "fbe34f53d650afb42af41160bd5b86e51c20fd79ffc4e074d38b6d800e5a6c00"
-        ),
-    }
+def test_internal_planning_documents_are_not_distributed() -> None:
+    forbidden_paths = (
+        REPOSITORY_ROOT / "docs" / "design",
+        REPOSITORY_ROOT / "docs" / "superpowers",
+        REPOSITORY_ROOT / "2026-06-26-cft-piastq-library-design.md",
+        REPOSITORY_ROOT / "2026-06-26-piastq-benchmark-managed-runner-jobs.md",
+    )
 
-    for file_name, expected_digest in expected_digests.items():
-        assert not (REPOSITORY_ROOT / file_name).exists()
-        destination = REPOSITORY_ROOT / "docs" / "design" / file_name
-        assert destination.is_file()
-        assert _canonical_text_digest(destination) == expected_digest
-
-
-def test_canonical_text_digest_is_line_ending_independent(tmp_path: Path) -> None:
-    lf_path = tmp_path / "lf.md"
-    crlf_path = tmp_path / "crlf.md"
-    lf_path.write_bytes(b"first\nsecond\n")
-    crlf_path.write_bytes(b"first\r\nsecond\r\n")
-
-    assert _canonical_text_digest(lf_path) == _canonical_text_digest(crlf_path)
+    assert not [path for path in forbidden_paths if path.exists()]
 
 
 def test_documentation_has_no_stale_root_design_document_references() -> None:
@@ -642,11 +630,6 @@ def test_pages_workflow_builds_strict_docs_with_cached_dependencies() -> None:
         "id-token": "write",
     }
     assert _uses(deploy_job["steps"], "actions/deploy-pages@v5")
-
-
-def _canonical_text_digest(path: Path) -> str:
-    canonical_text = path.read_text(encoding="utf-8")
-    return hashlib.sha256(canonical_text.encode("utf-8")).hexdigest()
 
 
 def _load_workflow(file_name: str) -> dict[object, object]:
