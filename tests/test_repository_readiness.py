@@ -82,7 +82,7 @@ def test_package_metadata_declares_supported_runtime_and_dependencies() -> None:
 
     assert metadata["project"]["requires-python"] == ">=3.11"
     assert metadata["project"]["dependencies"] == [
-        "qiskit>=1.4,<2",
+        "qiskit>=1.4,<2.2",
         "httpx>=0.27,<1",
         "platformdirs>=4,<5",
     ]
@@ -568,7 +568,10 @@ def test_ci_workflow_enforces_quality_gates_on_supported_python_versions() -> No
     assert test_job["runs-on"] == "ubuntu-latest"
     assert test_job["strategy"] == {
         "fail-fast": False,
-        "matrix": {"python-version": ["3.11", "3.12"]},
+        "matrix": {
+            "python-version": ["3.11", "3.12"],
+            "qiskit": ["qiskit>=1.4,<2", "qiskit>=2,<2.2"],
+        },
     }
     test_steps = test_job["steps"]
     assert _uses(test_steps, "actions/checkout@v7")
@@ -579,7 +582,11 @@ def test_ci_workflow_enforces_quality_gates_on_supported_python_versions() -> No
     }
     test_commands = _workflow_commands(test_steps)
     assert "python -m pip install --upgrade pip" in test_commands
-    assert 'python -m pip install -e ".[dev,direct]"' in test_commands
+    assert (
+        'python -m pip install -e ".[dev,fake]" "${{ matrix.qiskit }}"'
+        in test_commands
+    )
+    assert 'python -m pip install -e ".[direct]"' in test_commands
     assert (
         "python -m pytest --cov=cft_piastq --cov-report=term-missing "
         "--cov-report=xml" in test_commands

@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "qiskit>=1.4,<2",
+    "qiskit>=1.4,<2.2",
     "httpx>=0.27,<1",
     "platformdirs>=4,<5",
 ]

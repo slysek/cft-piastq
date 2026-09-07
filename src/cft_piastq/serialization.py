@@ -30,7 +30,8 @@ def circuits_to_qpy_base64(circuits: Sequence[QuantumCircuit]) -> str:
 
     buffer = io.BytesIO()
     try:
-        qpy.dump(circuit_list, buffer)
+        # Qiskit 1.4 runner must also read payloads produced by 2.1 clients.
+        qpy.dump(circuit_list, buffer, version=13)
     except Exception as exc:  # pragma: no cover - qiskit owns concrete failures
         raise PiastQError(
             f"Unable to serialize QPY circuit payload: {safe_error_message(exc)}"
