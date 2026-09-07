@@ -99,3 +99,13 @@ def test_qpy_decode_rejects_invalid_qpy_with_sanitized_error() -> None:
     message = str(exc_info.value)
     assert "invalid qpy" in message.lower()
     assert "secret" not in message
+
+
+def test_managed_qpy_uses_qiskit_14_compatible_format() -> None:
+    import base64
+
+    from cft_piastq.serialization import circuit_to_qpy_base64
+
+    payload = base64.b64decode(circuit_to_qpy_base64(bell_circuit()))
+    assert payload[:6] == b"QISKIT"
+    assert payload[6] == 13

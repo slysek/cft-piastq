@@ -113,3 +113,12 @@ logs, screenshots, or issue reports. Rotate an exposed credential.
 See the [full usage guide](docs/website-documentation.md) and the
 [Sphinx documentation](docs/source/index.rst) for configuration, results, and
 API details.
+
+
+### Qiskit compatibility for managed clients
+
+The base client supports Qiskit `>=1.4,<2.2`. Managed QPY serialization uses
+format version 13 so Qiskit 2.1 clients can submit to a Qiskit 1.4 runner.
+The direct extra retains the narrower PCSS/AQT dependency constraints; use a
+separate environment for direct execution. CI tests the managed/fake client on
+both Qiskit 1.4 and 2.1, with direct dependencies only on the 1.4 branch.
